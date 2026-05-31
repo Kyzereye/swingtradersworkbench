@@ -1,2 +1,9 @@
 export const MA_FAST_COLOR = "#3b82f6";
 export const MA_SLOW_COLOR = "#ef5350";
+export const MR_MA_COLOR = "#c084fc";
+export const MR_BAND_COLOR = "#a855f7";
+export const MR_UPPER_BAND_COLOR = "#e879f9";
+export const MR_ENTRY_COLOR = "#22d3ee";
+export const MR_EXIT_COLOR = "#fbbf24";
+export const MR_UPPER_ENTRY_COLOR = "#f472b6";
+export const MR_UPPER_EXIT_COLOR = "#fb923c";

@@ -23,29 +23,17 @@ function mapBarRow(row) {
   };
 }
 
-export async function listSymbols() {
-  const pool = getPool();
-  const [rows] = await pool.execute(
-    `SELECT symbol FROM stock_symbols ORDER BY symbol ASC`
-  );
-  return rows.map((r) => String(r.symbol).toUpperCase());
-}
-
-/** Active US equities for MA ingest + nightly scan (excludes crypto/forex). */
+/** Active US equities for nightly scan (excludes crypto/forex). */
 export async function listScannableSymbols() {
   const pool = getPool();
-  try {
-    const [rows] = await pool.execute(
-      `
-      SELECT symbol FROM stock_symbols
-      WHERE is_active = 1 AND asset_type IN ('stock', 'etf')
-      ORDER BY symbol ASC
-      `
-    );
-    return rows.map((r) => String(r.symbol).toUpperCase());
-  } catch {
-    return listSymbols();
-  }
+  const [rows] = await pool.execute(
+    `
+    SELECT symbol FROM stock_symbols
+    WHERE is_active = 1 AND asset_type IN ('stock', 'etf')
+    ORDER BY symbol ASC
+    `
+  );
+  return rows.map((r) => String(r.symbol).toUpperCase());
 }
 
 export async function searchSymbols(query, limit = 20) {

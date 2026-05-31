@@ -1,9 +1,9 @@
 import { optimizeMa } from "./optimizeMa.js";
 import { simulateTrades } from "./tradeSignals.js";
 
-export const DEFAULT_OPT_MA = { fast: 21, slow: 50 };
+const DEFAULT_OPT_MA = { fast: 21, slow: 50 };
 
-export function runningTotalFromTrades(trades) {
+function runningTotalFromTrades(trades) {
   let total = 0;
   for (const t of trades) {
     if (!t.open) {
@@ -13,26 +13,12 @@ export function runningTotalFromTrades(trades) {
   return total;
 }
 
-/**
- * Classify the most recent signal relative to the latest bar date.
- * entry / exit — signal on the last bar; open — in trade from an earlier bar.
- */
-export function classifyLastSignal(trades, markers, lastBarDate) {
+function classifyLastSignal(trades, markers, lastBarDate) {
   const onLast = markers.filter((m) => m.time === lastBarDate);
   if (onLast.some((m) => m.text === "Exit")) {
     return { lastSignal: "exit", signalDate: lastBarDate };
   }
   if (onLast.some((m) => m.text === "Entry")) {
-    return { lastSignal: "entry", signalDate: lastBarDate };
-  }
-
-  const closedOnLast = trades.find((t) => !t.open && t.exitDate === lastBarDate);
-  if (closedOnLast) {
-    return { lastSignal: "exit", signalDate: lastBarDate };
-  }
-
-  const enteredOnLast = trades.find((t) => t.entryDate === lastBarDate);
-  if (enteredOnLast && enteredOnLast.open) {
     return { lastSignal: "entry", signalDate: lastBarDate };
   }
 
@@ -44,9 +30,6 @@ export function classifyLastSignal(trades, markers, lastBarDate) {
   return { lastSignal: "none", signalDate: null };
 }
 
-/**
- * Run per-symbol nightly scan: optimized EMA pair + trades + signals.
- */
 export function scanSymbol(bars) {
   if (!bars?.length) return null;
 

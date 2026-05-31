@@ -147,13 +147,6 @@ body {
   font-size: 0.85rem;
 }
 
-.ma-controls-title {
-  font-weight: 600;
-  font-size: 0.8rem;
-  color: var(--muted);
-  margin-bottom: 0.15rem;
-}
-
 .ma-controls-field {
   display: flex;
   flex-direction: column;
@@ -178,6 +171,65 @@ body {
 
 .ma-controls-field input {
   -moz-appearance: textfield;
+}
+
+.ma-controls-title {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0.35rem 0 0.1rem;
+}
+
+.mr-controls .ma-controls-title:first-of-type {
+  margin-top: 0.15rem;
+}
+
+.mr-controls {
+  margin-top: 0;
+}
+
+.sidebar-panel {
+  margin-top: 0;
+  background: var(--bg);
+}
+
+.sidebar-panel + .sidebar-panel {
+  margin-top: 0.5rem;
+}
+
+.sidebar-panel summary {
+  font-size: 0.85rem;
+}
+
+.sidebar-panel-body {
+  padding: 0.65rem 0.75rem 0.75rem;
+}
+
+.sidebar-panel-body .ma-controls {
+  padding-top: 0;
+  border-top: none;
+}
+
+.sidebar-panel-body .ma-legend {
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
+}
+
+.mr-toggle {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mr-toggle span {
+  flex: 1;
+}
+
+.mr-toggle input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
 .ma-controls-field input::-webkit-outer-spin-button,
@@ -234,6 +286,29 @@ button:disabled {
   margin-bottom: 0.75rem;
 }
 
+.chart-shell {
+  position: relative;
+}
+
+.chart-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+}
+
+.chart-reset-zoom {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.65rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.chart-reset-zoom:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
 .chart-wrap {
   width: 100%;
   height: 420px;
@@ -284,13 +359,14 @@ button:disabled {
 }
 
 .expand-panel summary::before {
-  content: "▸ ";
+  content: "▸";
   display: inline-block;
+  margin-right: 0.5rem;
   color: var(--muted);
 }
 
 .expand-panel[open] summary::before {
-  content: "▾ ";
+  content: "▾";
 }
 
 .expand-body {
@@ -425,11 +501,6 @@ button:disabled {
   color: var(--muted);
   font-size: 0.85rem;
   margin: 0;
-}
-
-.scanner-empty code {
-  font-size: 0.8rem;
-  color: var(--text);
 }
 
 .scanner-scroll {

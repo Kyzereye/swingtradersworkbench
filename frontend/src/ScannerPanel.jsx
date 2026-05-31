@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { formatPct } from "./optimizeMa.js";
-
-function formatPnl(v) {
-  const sign = v >= 0 ? "+" : "";
-  return `${sign}${v.toFixed(2)}`;
-}
+import { formatPct, formatPnl } from "./optimizeMa.js";
 
 function ScanTable({ rows, onSelect, emptyMessage, activeSymbol }) {
   if (!rows.length) {

@@ -116,7 +116,7 @@ app.get("/api/daily-stock-data", async (req, res) => {
   try {
     const [rows] = await pool.execute(
       `
-      SELECT d.date, d.open, d.high, d.low, d.close, d.volume
+      SELECT d.date, d.open, d.high, d.low, d.close, d.volume, s.company_name
       FROM daily_stock_data d
       INNER JOIN stock_symbols s ON d.symbol_id = s.id
       WHERE s.symbol = ?
@@ -146,7 +146,12 @@ app.get("/api/daily-stock-data", async (req, res) => {
 
     res.json({
       symbol,
+      companyName: rows[0].company_name
+        ? String(rows[0].company_name).trim()
+        : null,
       historyYears: HISTORY_YEARS,
+      fromDate: data[0].date,
+      toDate: data[data.length - 1].date,
       count: data.length,
       data,
     });

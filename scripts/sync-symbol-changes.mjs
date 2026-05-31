@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { closePool, getPool } from "../backend/src/db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const SYMBOL_CHANGES_LOG_PATH = path.join(
+const SYMBOL_CHANGES_LOG_PATH = path.join(
   __dirname,
   "..",
   "data",

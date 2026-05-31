@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const PRICE_DATA_LOG_PATH = path.join(__dirname, "..", "data", "price-data.log");
+const PRICE_DATA_LOG_PATH = path.join(__dirname, "..", "data", "price-data.log");
 export const PRICE_DATA_LOG_REL = "data/price-data.log";
 
 const RETAIN_DAYS = 30;

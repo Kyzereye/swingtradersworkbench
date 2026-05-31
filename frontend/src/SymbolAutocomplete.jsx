@@ -11,7 +11,6 @@ export default function SymbolAutocomplete({
 }) {
   const listId = useId();
   const wrapRef = useRef(null);
-  const inputRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -86,7 +85,6 @@ export default function SymbolAutocomplete({
   return (
     <div className="symbol-ac" ref={wrapRef}>
       <input
-        ref={inputRef}
         type="text"
         className="symbol-ac-input"
         value={value}

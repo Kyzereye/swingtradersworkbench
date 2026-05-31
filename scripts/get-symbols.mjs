@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { closePool, getPool } from "../backend/src/db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const STORED_SYMBOLS_PATH = path.join(__dirname, "..", "data", "stored-symbols.json");
+const STORED_SYMBOLS_PATH = path.join(__dirname, "..", "data", "stored-symbols.json");
 
 const URLS = {
   sp500: "https://yfiua.github.io/index-constituents/constituents-sp500.json",

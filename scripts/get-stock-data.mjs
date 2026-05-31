@@ -7,10 +7,7 @@ import { getPool } from "../backend/src/db.js";
 
 const FMP_BASE = "https://financialmodelingprep.com/stable";
 export const HISTORY_YEARS = Number(process.env.HISTORY_YEARS) || 3;
-export const PRICE_DELAY_MS =
-  Number(process.env.FMP_PRICE_DELAY_MS) ||
-  Number(process.env.INGEST_DELAY_MS) ||
-  300;
+export const PRICE_DELAY_MS = Number(process.env.FMP_PRICE_DELAY_MS) || 300;
 
 function fmpKey() {
   const key = process.env.FMP_API_KEY;
