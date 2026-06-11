@@ -11,7 +11,13 @@ import TradingRules from "./TradingRules.jsx";
 import SymbolChangesTab from "./SymbolChangesTab.jsx";
 import UserDashboardTab from "./UserDashboardTab.jsx";
 import { formatPct } from "./optimizeMa.js";
-import { ENTRY_CONFIRM, simulateTrades } from "./tradeSignals.js";
+import { optimizeOpenGate } from "./optimizeOpenGate.js";
+import {
+  DEFAULT_MIN_CLEARANCE_PCT,
+  DEFAULT_MIN_MA_SPREAD_PCT,
+  ENTRY_CONFIRM,
+  simulateTrades,
+} from "./tradeSignals.js";
 
 const DEFAULT_SYMBOL = "AAPL";
 const DEFAULT_MA = { fast: 21, slow: 50, maType: "ema" };
@@ -49,6 +55,21 @@ function syncMaInputs(periods, setFastInput, setSlowInput) {
 function formatPnl(v) {
   const sign = v >= 0 ? "+" : "";
   return `${sign}${v.toFixed(2)}`;
+}
+
+/** Sidebar % input → fraction; blank/invalid keeps fallback (not 0). */
+function parseGatePctInput(value, fallbackFraction) {
+  const trimmed = String(value).trim();
+  if (trimmed === "") return fallbackFraction;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n < 0) return fallbackFraction;
+  return n / 100;
+}
+
+function formatGatePctInput(pctPoints) {
+  const n = Number(pctPoints);
+  if (!Number.isFinite(n)) return "";
+  return String(Number(n.toFixed(2)));
 }
 
 function formatDataSpan(fromDate, toDate) {
@@ -132,6 +153,13 @@ export default function App() {
   const [fastInput, setFastInput] = useState(String(DEFAULT_MA.fast));
   const [slowInput, setSlowInput] = useState(String(DEFAULT_MA.slow));
   const [entryConfirm, setEntryConfirm] = useState(ENTRY_CONFIRM.SINGLE);
+  const [openGate, setOpenGate] = useState(true);
+  const [spreadPctInput, setSpreadPctInput] = useState(
+    String(DEFAULT_MIN_MA_SPREAD_PCT * 100)
+  );
+  const [clearancePctInput, setClearancePctInput] = useState(
+    String(DEFAULT_MIN_CLEARANCE_PCT * 100)
+  );
   const [favorites, setFavorites] = useState(loadFavorites);
 
   useEffect(() => {
@@ -215,12 +243,39 @@ export default function App() {
   const series = payload?.data ?? [];
   const { fast, slow, maType } = maPeriods;
 
+  useEffect(() => {
+    if (!series.length) return;
+    const { top } = optimizeOpenGate(series, { fast, slow, maType, topN: 1 });
+    const best = top[0];
+    if (!best) return;
+    setSpreadPctInput(formatGatePctInput(best.spreadPct));
+    setClearancePctInput(formatGatePctInput(best.clearancePct));
+  }, [symbol, series, fast, slow, maType]);
+
+  const openGateThresholds = useMemo(
+    () => ({
+      minSpreadPct: parseGatePctInput(
+        spreadPctInput,
+        DEFAULT_MIN_MA_SPREAD_PCT
+      ),
+      minClearancePct: parseGatePctInput(
+        clearancePctInput,
+        DEFAULT_MIN_CLEARANCE_PCT
+      ),
+    }),
+    [spreadPctInput, clearancePctInput]
+  );
+
   const { trades, markers } = useMemo(
     () =>
       series.length
-        ? simulateTrades(series, fast, slow, maType, { entryConfirm })
+        ? simulateTrades(series, fast, slow, maType, {
+            entryConfirm,
+            openGate,
+            ...openGateThresholds,
+          })
         : { trades: [], markers: [] },
-    [series, fast, slow, maType, entryConfirm]
+    [series, fast, slow, maType, entryConfirm, openGate, openGateThresholds]
   );
 
   const tradesDisplay = useMemo(() => {
@@ -364,6 +419,45 @@ export default function App() {
         </label>
         </div>
 
+        <div className="ma-controls" aria-label="Open gate settings">
+          <div className="ma-controls-title">Open gate</div>
+          <p className="ma-controls-hint">
+            Spread / clearance auto-set per symbol (min 3y/1y P/L%).
+          </p>
+          <label className="ma-controls-field ma-controls-check">
+            <input
+              type="checkbox"
+              checked={openGate}
+              onChange={(e) => setOpenGate(e.target.checked)}
+            />
+            <span>Enable open gate</span>
+          </label>
+          <label className="ma-controls-field">
+            <span>Min MA spread %</span>
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              value={spreadPctInput}
+              onChange={(e) => setSpreadPctInput(e.target.value)}
+              disabled={!openGate}
+              aria-label="Minimum fast-slow MA spread percent"
+            />
+          </label>
+          <label className="ma-controls-field">
+            <span>Min clearance % (if spread low)</span>
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              value={clearancePctInput}
+              onChange={(e) => setClearancePctInput(e.target.value)}
+              disabled={!openGate}
+              aria-label="Minimum close above fast MA percent"
+            />
+          </label>
+        </div>
+
         <div className="sidebar-trades-help" aria-label="Opens and closes column definitions">
           <p className="sidebar-trades-help-title">Opens &amp; closes</p>
           <dl>
@@ -377,6 +471,12 @@ export default function App() {
             <dd>Sum of P/L from closed trades up to that row.</dd>
             <dt>Running P/L %</dt>
             <dd>Compounded return from those closed trades: multiply (close ÷ open) for each, then − 1, × 100.</dd>
+            <dt>Open gate</dt>
+            <dd>
+              When enabled: if (fast − slow) ÷ close ≥ spread %, open. Otherwise
+              only if (close − fast) ÷ close ≥ clearance %. If both are too small,
+              skip. Raise both % to block more entries.
+            </dd>
           </dl>
         </div>
       </aside>

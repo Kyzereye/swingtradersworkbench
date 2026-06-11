@@ -187,6 +187,13 @@ body {
   margin-bottom: 0.15rem;
 }
 
+.ma-controls-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .ma-controls-field {
   display: flex;
   flex-direction: column;
@@ -217,6 +224,21 @@ body {
 .ma-controls-field input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+.ma-controls-field.ma-controls-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ma-controls-field.ma-controls-check span {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.ma-controls-field input:disabled {
+  opacity: 0.5;
 }
 
 input[type="text"] {

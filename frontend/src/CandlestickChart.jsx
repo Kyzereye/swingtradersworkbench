@@ -93,7 +93,6 @@ export default function CandlestickChart({
     const candles = candleRef.current;
     const ema21 = ema21Ref.current;
     const ema50 = ema50Ref.current;
-    const seriesMarkers = markersRef.current;
     const chart = chartRef.current;
     if (!candles || !ema21 || !ema50 || !chart || !data?.length) return;
 
@@ -108,9 +107,12 @@ export default function CandlestickChart({
     );
     ema21.setData(computeMaSeries(data, fastPeriod, maType));
     ema50.setData(computeMaSeries(data, slowPeriod, maType));
-    seriesMarkers?.setMarkers(markers);
     chart.timeScale().fitContent();
-  }, [data, markers, fastPeriod, slowPeriod, maType]);
+  }, [data, fastPeriod, slowPeriod, maType]);
+
+  useEffect(() => {
+    markersRef.current?.setMarkers(markers);
+  }, [markers]);
 
   return <div ref={containerRef} className="chart-wrap" />;
 }

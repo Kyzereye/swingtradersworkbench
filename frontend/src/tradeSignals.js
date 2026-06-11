@@ -7,10 +7,15 @@ export const ENTRY_CONFIRM = {
   DOUBLE: "double",
 };
 
+/** Default open-gate thresholds as fractions of price (0.005 = 0.5%). */
+export const DEFAULT_MIN_MA_SPREAD_PCT = 0.005;
+export const DEFAULT_MIN_CLEARANCE_PCT = 0.0025;
+
 /**
  * Entry: not in trade, close > slow MA, fast > slow, close > fast MA.
- * entryConfirm 'single' — one close above fast is enough.
- * entryConfirm 'double' — two consecutive closes above fast required.
+ * openGate: spread (fast−slow)/close is checked first; if below minSpreadPct,
+ * clearance (close−fast)/close must be >= minClearancePct or entry is skipped.
+ * entryConfirm 'single' | 'double' — closes above fast before entry.
  * After exit (close < fast MA), one close above fast clears recovery block.
  * Exit: in trade and close < fast MA.
  */
@@ -19,7 +24,12 @@ export function simulateTrades(
   fastPeriod = 21,
   slowPeriod = 50,
   maType = "ema",
-  { entryConfirm = ENTRY_CONFIRM.SINGLE } = {}
+  {
+    entryConfirm = ENTRY_CONFIRM.SINGLE,
+    openGate = false,
+    minSpreadPct = DEFAULT_MIN_MA_SPREAD_PCT,
+    minClearancePct = DEFAULT_MIN_CLEARANCE_PCT,
+  } = {}
 ) {
   const requireDouble = entryConfirm === ENTRY_CONFIRM.DOUBLE;
   const maFast = maByDate(bars, fastPeriod, maType);
@@ -66,18 +76,31 @@ export function simulateTrades(
       eFast > eSlow &&
       (!requireDouble || consecutiveClosesAboveFast >= 2)
     ) {
-      inTrade = true;
-      open = {
-        entryDate: bar.date,
-        entryPrice: bar.close,
-      };
-      markers.push({
-        time: bar.date,
-        position: "belowBar",
-        shape: "arrowUp",
-        color: "#6abf69",
-        text: "Open",
-      });
+      let allowEntry = true;
+      if (openGate) {
+        const spreadPct = (eFast - eSlow) / bar.close;
+        if (spreadPct >= minSpreadPct) {
+          allowEntry = true;
+        } else {
+          const clearancePct = (bar.close - eFast) / bar.close;
+          allowEntry = clearancePct >= minClearancePct;
+        }
+      }
+
+      if (allowEntry) {
+        inTrade = true;
+        open = {
+          entryDate: bar.date,
+          entryPrice: bar.close,
+        };
+        markers.push({
+          time: bar.date,
+          position: "belowBar",
+          shape: "arrowUp",
+          color: "#6abf69",
+          text: "Open",
+        });
+      }
     }
   }
 
