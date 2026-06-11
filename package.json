@@ -4,7 +4,6 @@
   "scripts": {
     "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
     "optimize:ma": "node scripts/optimize-ma.mjs",
-    "optimize:open-gate": "node scripts/optimize-open-gate.mjs",
     "get-symbols": "node scripts/get-symbols-FMP.mjs",
     "sync-symbol-changes": "node scripts/sync-symbol-changes.mjs",
     "get-bulk-price-data": "node scripts/get-bulk-price-data.mjs",

@@ -187,13 +187,6 @@ body {
   margin-bottom: 0.15rem;
 }
 
-.ma-controls-hint {
-  margin: 0 0 0.5rem;
-  font-size: 0.75rem;
-  color: var(--muted);
-  line-height: 1.35;
-}
-
 .ma-controls-field {
   display: flex;
   flex-direction: column;

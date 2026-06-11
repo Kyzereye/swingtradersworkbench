@@ -11,7 +11,6 @@ import TradingRules from "./TradingRules.jsx";
 import SymbolChangesTab from "./SymbolChangesTab.jsx";
 import UserDashboardTab from "./UserDashboardTab.jsx";
 import { formatPct } from "./optimizeMa.js";
-import { optimizeOpenGate } from "./optimizeOpenGate.js";
 import {
   DEFAULT_MIN_CLEARANCE_PCT,
   DEFAULT_MIN_MA_SPREAD_PCT,
@@ -64,12 +63,6 @@ function parseGatePctInput(value, fallbackFraction) {
   const n = Number(trimmed);
   if (!Number.isFinite(n) || n < 0) return fallbackFraction;
   return n / 100;
-}
-
-function formatGatePctInput(pctPoints) {
-  const n = Number(pctPoints);
-  if (!Number.isFinite(n)) return "";
-  return String(Number(n.toFixed(2)));
 }
 
 function formatDataSpan(fromDate, toDate) {
@@ -243,15 +236,6 @@ export default function App() {
   const series = payload?.data ?? [];
   const { fast, slow, maType } = maPeriods;
 
-  useEffect(() => {
-    if (!series.length) return;
-    const { top } = optimizeOpenGate(series, { fast, slow, maType, topN: 1 });
-    const best = top[0];
-    if (!best) return;
-    setSpreadPctInput(formatGatePctInput(best.spreadPct));
-    setClearancePctInput(formatGatePctInput(best.clearancePct));
-  }, [symbol, series, fast, slow, maType]);
-
   const openGateThresholds = useMemo(
     () => ({
       minSpreadPct: parseGatePctInput(
@@ -420,10 +404,7 @@ export default function App() {
         </div>
 
         <div className="ma-controls" aria-label="Open gate settings">
-          <div className="ma-controls-title">Open gate</div>
-          <p className="ma-controls-hint">
-            Spread / clearance auto-set per symbol (min 3y/1y P/L%).
-          </p>
+          <div className="ma-controls-title">Open gate (chart test)</div>
           <label className="ma-controls-field ma-controls-check">
             <input
               type="checkbox"
