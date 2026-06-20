@@ -7,6 +7,7 @@
  */
 
 import { scanSymbol } from "../frontend/src/scanSymbol.js";
+import { writeChartCache } from "../backend/src/chartCache.js";
 import { closePool } from "../backend/src/db.js";
 import {
   listScannableSymbols,
@@ -46,6 +47,7 @@ async function analyzeOne(sym) {
     return { sym, status: "skip", reason: "analyze failed" };
   }
   await upsertScanRow(sym, result);
+  writeChartCache(sym, result);
   return { sym, status: "ok", ...result };
 }
 

@@ -81,5 +81,7 @@ export function scanSymbol(bars) {
     lastSignal,
     signalDate,
     barCount: bars.length,
+    trades,
+    markers,
   };
 }

@@ -12,10 +12,9 @@ import SymbolChangesTab from "./SymbolChangesTab.jsx";
 import UserDashboardTab from "./UserDashboardTab.jsx";
 import DisclaimerDialog from "./DisclaimerDialog.jsx";
 import { formatPct } from "./optimizeMa.js";
-import { ENTRY_CONFIRM, simulateTrades } from "./tradeSignals.js";
 
 const DEFAULT_SYMBOL = "AAPL";
-const DEFAULT_MA = { fast: 21, slow: 50, maType: "sma" };
+const DEFAULT_MA = { fast: 21, slow: 50 };
 const FAVORITES_KEY = "dbma-favorites";
 const DISCLAIMER_SESSION_KEY = "dbma-disclaimer-v1";
 
@@ -39,26 +38,16 @@ function loadFavorites() {
 }
 
 function parsePeriod(value, fallback) {
-  const n = Number(String(value).trim());
+  const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   return Math.max(2, Math.min(200, Math.floor(n)));
 }
 
-function clampMaConfig(fast, slow, maType, fallback = DEFAULT_MA) {
-  const f = parsePeriod(fast, fallback.fast);
-  let s = parsePeriod(slow, fallback.slow);
-  if (s <= f) s = f + 1;
-  return { fast: f, slow: s, maType: maType === "ema" ? "ema" : "sma" };
-}
-
-function resolveChartMa({ fastInput, slowInput, maType, optimizedMa }) {
-  const hasOverride = fastInput.trim() !== "" && slowInput.trim() !== "";
-  if (hasOverride) {
-    return clampMaConfig(fastInput, slowInput, maType, DEFAULT_MA);
-  }
-  const fast = optimizedMa?.fast ?? DEFAULT_MA.fast;
-  const slow = optimizedMa?.slow ?? DEFAULT_MA.slow;
-  return clampMaConfig(fast, slow, maType, DEFAULT_MA);
+function chartMaFromScan(scan) {
+  const fast = parsePeriod(scan?.optFast, DEFAULT_MA.fast);
+  let slow = parsePeriod(scan?.optSlow, DEFAULT_MA.slow);
+  if (slow <= fast) slow = fast + 1;
+  return { fast, slow };
 }
 
 function formatPnl(v) {
@@ -143,11 +132,6 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [payload, setPayload] = useState(null);
-  const [optimizedMa, setOptimizedMa] = useState(null);
-  const [maType, setMaType] = useState(DEFAULT_MA.maType);
-  const [fastInput, setFastInput] = useState("");
-  const [slowInput, setSlowInput] = useState("");
-  const [entryConfirm, setEntryConfirm] = useState(ENTRY_CONFIRM.SINGLE);
   const [favorites, setFavorites] = useState(loadFavorites);
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(loadDisclaimerAccepted);
 
@@ -193,9 +177,6 @@ export default function App() {
       }
       setPayload(body);
       setSymbol(s);
-      setOptimizedMa(body.optimizedMa ?? null);
-      setFastInput("");
-      setSlowInput("");
     } catch (err) {
       setError(err?.message || String(err));
       setPayload(null);
@@ -225,36 +206,11 @@ export default function App() {
     setTab("home");
   }
 
-  function updateMaType(nextType) {
-    const type = nextType === "ema" ? "ema" : "sma";
-    setMaType(type);
-    if (fastInput.trim() !== "" && slowInput.trim() !== "") {
-      const next = clampMaConfig(fastInput, slowInput, type, DEFAULT_MA);
-      setFastInput(String(next.fast));
-      setSlowInput(String(next.slow));
-    }
-  }
-
-  function commitMaInputs() {
-    if (fastInput.trim() === "" || slowInput.trim() === "") return;
-    const next = clampMaConfig(fastInput, slowInput, maType, DEFAULT_MA);
-    setFastInput(String(next.fast));
-    setSlowInput(String(next.slow));
-  }
-
   const series = payload?.data ?? [];
-  const { fast, slow, maType: chartMaType } = useMemo(
-    () => resolveChartMa({ fastInput, slowInput, maType, optimizedMa }),
-    [fastInput, slowInput, maType, optimizedMa]
-  );
-
-  const { trades, markers } = useMemo(
-    () =>
-      series.length
-        ? simulateTrades(series, fast, slow, chartMaType, { entryConfirm })
-        : { trades: [], markers: [] },
-    [series, fast, slow, chartMaType, entryConfirm]
-  );
+  const scan = payload?.scan ?? null;
+  const { fast, slow } = useMemo(() => chartMaFromScan(scan), [scan]);
+  const trades = scan?.trades ?? [];
+  const markers = scan?.markers ?? [];
 
   const tradesDisplay = useMemo(() => {
     const asOfDate = series.length ? series[series.length - 1].date : null;
@@ -310,14 +266,14 @@ export default function App() {
               className="ma-legend-swatch"
               style={{ background: MA_FAST_COLOR }}
             />
-            Fast {chartMaType.toUpperCase()}
+            Fast SMA {fast}
           </div>
           <div className="ma-legend-item">
             <span
               className="ma-legend-swatch"
               style={{ background: MA_SLOW_COLOR }}
             />
-            Slow {chartMaType.toUpperCase()}
+            Slow SMA {slow}
           </div>
         </div>
 
@@ -352,56 +308,30 @@ export default function App() {
 
         {error ? <div className="error sidebar-error">{error}</div> : null}
 
-        <div className="ma-controls" aria-label="Moving average settings">
-        <div className="ma-controls-title">MA settings</div>
-        <label className="ma-controls-field">
-          <span>Type</span>
-          <select
-            value={maType}
-            onChange={(e) => updateMaType(e.target.value)}
-            aria-label="MA type"
-          >
-            <option value="sma">SMA</option>
-            <option value="ema">EMA</option>
-          </select>
-        </label>
-        <label className="ma-controls-field">
-          <span>Fast</span>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={fastInput}
-            onChange={(e) => setFastInput(e.target.value.replace(/\D/g, ""))}
-            onBlur={commitMaInputs}
-            onKeyDown={(e) => e.key === "Enter" && commitMaInputs()}
-            aria-label="Fast MA period"
-          />
-        </label>
-        <label className="ma-controls-field">
-          <span>Slow</span>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={slowInput}
-            onChange={(e) => setSlowInput(e.target.value.replace(/\D/g, ""))}
-            onBlur={commitMaInputs}
-            onKeyDown={(e) => e.key === "Enter" && commitMaInputs()}
-            aria-label="Slow MA period"
-          />
-        </label>
-        <label className="ma-controls-field">
-          <span>Open confirm</span>
-          <select
-            value={entryConfirm}
-            onChange={(e) => setEntryConfirm(e.target.value)}
-            aria-label="Open confirmation"
-          >
-            <option value={ENTRY_CONFIRM.SINGLE}>One close above fast</option>
-            <option value={ENTRY_CONFIRM.DOUBLE}>
-              Two closes above fast
-            </option>
-          </select>
-        </label>
+        <div className="ma-controls" aria-label="Analyze scan">
+        <div className="ma-controls-title">From analyze-symbols</div>
+        {scan ? (
+          <>
+            <p className="sidebar-scan-row">
+              Running P/L %:{" "}
+              {scan.runningTotalPct == null
+                ? "n/a"
+                : formatPct(scan.runningTotalPct)}
+            </p>
+            <p className="sidebar-scan-row">
+              MA pair: {scan.optFast}/{scan.optSlow} SMA
+            </p>
+            <p className="sidebar-scan-row">
+              Signal: {scan.lastSignal}
+              {scan.signalDate ? ` @ ${scan.signalDate}` : ""}
+            </p>
+          </>
+        ) : (
+          <p className="sidebar-scan-row sidebar-scan-missing">
+            No scan data — run <code>npm run analyze-symbols</code> for this
+            symbol.
+          </p>
+        )}
         </div>
 
         <div className="sidebar-trades-help" aria-label="Opens and closes column definitions">
@@ -440,7 +370,7 @@ export default function App() {
                   markers={markers}
                   fastPeriod={fast}
                   slowPeriod={slow}
-                  maType={chartMaType}
+                  maType="sma"
                 />
               </>
             ) : (

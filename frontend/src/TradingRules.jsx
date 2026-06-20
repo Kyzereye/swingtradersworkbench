@@ -12,9 +12,8 @@ export default function TradingRules() {
       <p className="rules-intro">
         Signals are <strong>price vs moving average</strong> — where the daily
         close sits relative to the fast and slow MAs — not a fast/slow MA line
-        crossover. Chart signals use the periods and open-confirm mode you set in
-        the Chart sidebar. The nightly scan uses one close above fast (single
-        confirm) with per-symbol MA periods from optimization — see below.
+        crossover. Chart trades and running P/L come from the latest{" "}
+        <code>analyze-symbols</code> run stored in the database.
       </p>
 
       <section className="rules-section">
@@ -70,8 +69,9 @@ export default function TradingRules() {
         </p>
         <p>
           The displayed <strong>opt fast/slow</strong> is the current pair from the
-          latest trailing optimization. On the <strong>Chart</strong> tab, leave MA
-          inputs blank to use the optimized pair or enter your own periods to override (EMA or SMA from the sidebar).
+          latest analyze run. The <strong>Chart</strong> tab shows trades,
+          markers, and running P/L from the latest <code>analyze-symbols</code>{" "}
+          run (DB stats + chart cache file).
         </p>
       </section>
     </div>

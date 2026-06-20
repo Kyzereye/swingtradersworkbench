@@ -8,7 +8,7 @@ import {
   listScanDates,
   loadScanForDate,
   loadScanForLatestDate,
-  loadOptimizedMaForSymbol,
+  loadScanChartForSymbol,
   loadTopPerformers,
   parseTopPerformerQuery,
   searchSymbols,
@@ -236,7 +236,7 @@ app.get("/api/daily-stock-data", async (req, res) => {
         volume: Number(row.volume),
       }));
 
-    const optimizedMa = await loadOptimizedMaForSymbol(symbol);
+    const scan = await loadScanChartForSymbol(symbol);
 
     res.json({
       symbol,
@@ -246,7 +246,7 @@ app.get("/api/daily-stock-data", async (req, res) => {
       toDate: data[data.length - 1].date,
       count: data.length,
       data,
-      optimizedMa,
+      scan,
     });
   } catch (err) {
     console.error(err);

@@ -1,4 +1,5 @@
 import { getPool } from "./db.js";
+import { readChartCache } from "./chartCache.js";
 
 const HISTORY_YEARS = Number(process.env.HISTORY_YEARS) || 3;
 
@@ -117,6 +118,42 @@ export async function loadBarsForSymbol(symbol) {
     [symbol, startDate]
   );
   return rows.map(mapBarRow);
+}
+
+/** Latest analyze stats from DB + trades/markers from chart cache file. */
+export async function loadScanChartForSymbol(symbol) {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT opt_fast, opt_slow, running_total, running_total_pct,
+           last_signal, signal_date, as_of_date, computed_at
+    FROM symbol_daily_scan
+    WHERE symbol = ?
+    ORDER BY as_of_date DESC
+    LIMIT 1
+    `,
+    [symbol]
+  );
+  if (!rows.length) return null;
+
+  const row = rows[0];
+  const fast = Number(row.opt_fast);
+  const slow = Number(row.opt_slow);
+  const cache = readChartCache(symbol);
+
+  return {
+    asOfDate: formatDateOnly(row.as_of_date),
+    computedAt: row.computed_at,
+    optFast: Number.isFinite(fast) ? fast : null,
+    optSlow: Number.isFinite(slow) ? slow : null,
+    runningTotal: Number(row.running_total),
+    runningTotalPct:
+      row.running_total_pct != null ? Number(row.running_total_pct) : null,
+    lastSignal: row.last_signal,
+    signalDate: formatDateOnly(row.signal_date),
+    trades: cache?.trades ?? [],
+    markers: cache?.markers ?? [],
+  };
 }
 
 export async function upsertScanRow(symbol, scan) {
