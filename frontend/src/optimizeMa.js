@@ -78,16 +78,42 @@ export function optimizeMa(bars, { topN = DEFAULT_TOP_N } = {}) {
 
   results.sort((a, b) => b.minReturn - a.minReturn);
 
-  const baseline = results.find((r) => r.fast === 21 && r.slow === 50);
-  const baselineRank = baseline ? results.indexOf(baseline) + 1 : null;
+  const baseline = evaluateBaseline(bars, maCache, bars1yStart, results);
 
   return {
     top: results.slice(0, topN),
-    baseline: baseline ? { ...baseline, rank: baselineRank } : null,
+    baseline,
     totalPairs: results.length,
     barCount: bars.length,
     from: bars[0].date,
     to: bars[bars.length - 1].date,
+  };
+}
+
+/**
+ * Score the 21/50 default through the same gates as the grid, even though 21
+ * is off-grid (grid fast values are all even — see FAST_MIN/GRID_STEP). Rank
+ * is relative to the already-sorted grid `results`, not a grid membership.
+ */
+function evaluateBaseline(bars, maCache, bars1yStart, results) {
+  const fast = 21;
+  const slow = 50;
+  const r3y = evaluateWindow(bars, fast, slow, MIN_TRADES_3Y, maCache);
+  const r1y = evaluateWindow(bars, fast, slow, MIN_TRADES_1Y, maCache, bars1yStart);
+  if (!r3y || !r1y) return null;
+
+  const minReturn = Math.min(r3y.returnPct, r1y.returnPct);
+  const rank = results.filter((r) => r.minReturn > minReturn).length + 1;
+
+  return {
+    fast,
+    slow,
+    r3y: r3y.returnPct,
+    r1y: r1y.returnPct,
+    minReturn,
+    n3y: r3y.trades,
+    n1y: r1y.trades,
+    rank,
   };
 }
 

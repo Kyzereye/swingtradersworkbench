@@ -11,7 +11,11 @@ export const ENTRY_CONFIRM = {
  * Entry: not in trade, close > slow MA, fast > slow, close > fast MA.
  * entryConfirm 'single' — one close above fast is enough.
  * entryConfirm 'double' — two consecutive closes above fast required.
- * Exit: in trade and close < fast MA.
+ * Exit: in trade and close < fast MA (or below fast × (1 − exitBufferPct/100)).
+ * exitBufferPct — percent band under the fast MA; 0 = exact fast MA (default).
+ * adxSeries/adxMin — optional regime gate on new entries only: with both set,
+ * an entry needs ADX > adxMin on the signal bar. Never forces an exit. Passing
+ * either as null leaves the gate off and the rules exactly as they were.
  * Signals are evaluated at the bar close; fills use the next bar's open.
  */
 export function simulateTrades(
@@ -19,13 +23,21 @@ export function simulateTrades(
   fastPeriod = 21,
   slowPeriod = 50,
   maType = "ema",
-  { entryConfirm = ENTRY_CONFIRM.SINGLE } = {}
+  {
+    entryConfirm = ENTRY_CONFIRM.SINGLE,
+    exitBufferPct = 0,
+    adxSeries = null,
+    adxMin = null,
+  } = {}
 ) {
   const requireDouble = entryConfirm === ENTRY_CONFIRM.DOUBLE;
+  const exitMult = 1 - Math.max(0, Number(exitBufferPct) || 0) / 100;
+  const gateOn = adxSeries != null && adxMin != null;
   const maFast = maByDate(bars, fastPeriod, maType);
   const maSlow = maByDate(bars, slowPeriod, maType);
   const trades = [];
   const markers = [];
+  let entriesBlocked = 0;
   let inTrade = false;
   let open = null;
   let pendingEntry = false;
@@ -64,8 +76,9 @@ export function simulateTrades(
     }
 
     const hasNextBar = barIndex < bars.length - 1;
+    const exitLine = eFast * exitMult;
 
-    if (inTrade && bar.close < eFast) {
+    if (inTrade && bar.close < exitLine) {
       markers.push({
         time: bar.date,
         position: "aboveBar",
@@ -84,15 +97,20 @@ export function simulateTrades(
       eFast > eSlow &&
       (!requireDouble || consecutiveClosesAboveFast >= 2)
     ) {
-      markers.push({
-        time: bar.date,
-        position: "belowBar",
-        shape: "arrowUp",
-        color: "#6abf69",
-        text: "Open",
-      });
-      if (hasNextBar) {
-        pendingEntry = true;
+      const adx = gateOn ? adxSeries[barIndex] : null;
+      if (gateOn && !(adx != null && adx > adxMin)) {
+        entriesBlocked += 1;
+      } else {
+        markers.push({
+          time: bar.date,
+          position: "belowBar",
+          shape: "arrowUp",
+          color: "#6abf69",
+          text: "Open",
+        });
+        if (hasNextBar) {
+          pendingEntry = true;
+        }
       }
     }
   }
@@ -101,7 +119,7 @@ export function simulateTrades(
     trades.push({ ...open, open: true });
   }
 
-  return { trades, markers };
+  return { trades, markers, entriesBlocked };
 }
 
 /** Same rules as simulateTrades; uses precomputed SMA arrays (bar index). */
@@ -110,17 +128,26 @@ export function simulateTradesWithMaCache(
   fastPeriod,
   slowPeriod,
   maCache,
-  { entryConfirm = ENTRY_CONFIRM.SINGLE, startIndex = 0 } = {}
+  {
+    entryConfirm = ENTRY_CONFIRM.SINGLE,
+    exitBufferPct = 0,
+    startIndex = 0,
+    adxSeries = null,
+    adxMin = null,
+  } = {}
 ) {
   const requireDouble = entryConfirm === ENTRY_CONFIRM.DOUBLE;
+  const exitMult = 1 - Math.max(0, Number(exitBufferPct) || 0) / 100;
+  const gateOn = adxSeries != null && adxMin != null;
   const maFast = maCache.get(fastPeriod);
   const maSlow = maCache.get(slowPeriod);
   if (!maFast || !maSlow) {
-    return { trades: [], markers: [] };
+    return { trades: [], markers: [], entriesBlocked: 0 };
   }
 
   const trades = [];
   const markers = [];
+  let entriesBlocked = 0;
   let inTrade = false;
   let open = null;
   let pendingEntry = false;
@@ -159,8 +186,9 @@ export function simulateTradesWithMaCache(
     }
 
     const hasNextBar = barIndex < bars.length - 1;
+    const exitLine = eFast * exitMult;
 
-    if (inTrade && bar.close < eFast) {
+    if (inTrade && bar.close < exitLine) {
       markers.push({
         time: bar.date,
         position: "aboveBar",
@@ -177,14 +205,19 @@ export function simulateTradesWithMaCache(
       eFast > eSlow &&
       (!requireDouble || consecutiveClosesAboveFast >= 2)
     ) {
-      markers.push({
-        time: bar.date,
-        position: "belowBar",
-        shape: "arrowUp",
-        color: "#6abf69",
-        text: "Open",
-      });
-      if (hasNextBar) pendingEntry = true;
+      const adx = gateOn ? adxSeries[barIndex] : null;
+      if (gateOn && !(adx != null && adx > adxMin)) {
+        entriesBlocked += 1;
+      } else {
+        markers.push({
+          time: bar.date,
+          position: "belowBar",
+          shape: "arrowUp",
+          color: "#6abf69",
+          text: "Open",
+        });
+        if (hasNextBar) pendingEntry = true;
+      }
     }
   }
 
@@ -192,5 +225,5 @@ export function simulateTradesWithMaCache(
     trades.push({ ...open, open: true });
   }
 
-  return { trades, markers };
+  return { trades, markers, entriesBlocked };
 }

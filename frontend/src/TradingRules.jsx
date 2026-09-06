@@ -31,6 +31,13 @@ export default function TradingRules() {
             or <strong>two consecutive</strong> closes above fast (a dip back
             under fast resets the count)
           </li>
+          <li>
+            Optional <strong>ADX gate</strong> (Chart sidebar): with a threshold
+            set, an open also requires <strong>ADX(14) above it</strong> on the
+            signal bar, so new positions are skipped in sideways markets. It
+            never forces a close — a falling ADX while in a position changes
+            nothing. Off by default, and the nightly scan does not use it.
+          </li>
         </ul>
       </section>
 
@@ -41,6 +48,11 @@ export default function TradingRules() {
           <li>
             <strong>Close</strong> when price falls <strong>below the fast</strong>{" "}
             moving average
+          </li>
+          <li>
+            Optional <strong>exit buffer %</strong> (Chart sidebar): close only when
+            price falls that percent <em>under</em> the fast MA, so shallow
+            pullbacks do not force an exit. 0% is the default (exact fast MA).
           </li>
         </ul>
       </section>

@@ -219,6 +219,56 @@ body {
   margin: 0;
 }
 
+.undershoot-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: -0.15rem 0 0.35rem;
+  padding: 0.5rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.undershoot-line {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.undershoot-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.undershoot-btn {
+  flex: 1;
+  padding: 0.3rem 0.45rem;
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.undershoot-btn:hover:not(:disabled) {
+  border-color: #6b7c8f;
+}
+
+.undershoot-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.undershoot-note {
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
 input[type="text"] {
   background: var(--panel);
   border: 1px solid var(--border);

@@ -4,7 +4,7 @@ import CandlestickChart from "./CandlestickChart.jsx";
 import RunningPnlChart, { runningPnlPctPoints } from "./RunningPnlChart.jsx";
 import DailySignals from "./DailySignals.jsx";
 import DashboardTabs from "./DashboardTabs.jsx";
-import { MA_FAST_COLOR, MA_SLOW_COLOR } from "./chartColors.js";
+import { EXIT_BUFFER_COLOR, MA_FAST_COLOR, MA_SLOW_COLOR } from "./chartColors.js";
 import ScannerPanel from "./ScannerPanel.jsx";
 import SymbolAutocomplete from "./SymbolAutocomplete.jsx";
 import TradingRules from "./TradingRules.jsx";
@@ -13,9 +13,17 @@ import UserDashboardTab from "./UserDashboardTab.jsx";
 import DisclaimerDialog from "./DisclaimerDialog.jsx";
 import { formatPct } from "./optimizeMa.js";
 import { ENTRY_CONFIRM, simulateTrades } from "./tradeSignals.js";
+import { computeAdxSeries } from "./adx.js";
+import {
+  bufferFromUndershoot,
+  computeUndershootEvents,
+} from "./undershootBuffer.js";
 
 const DEFAULT_SYMBOL = "AAPL";
 const DEFAULT_MA = { fast: 21, slow: 50, maType: "sma" };
+const EXIT_BUFFER_PRESETS = [0, 0.5, 1, 1.5, 2, 3, 4, 5];
+const UNDERSHOOT_MIN_EVENTS = 3;
+const UNDERSHOOT_MAX_BUFFER = 5;
 const FAVORITES_KEY = "dbma-favorites";
 const DISCLAIMER_SESSION_KEY = "dbma-disclaimer-v1";
 
@@ -148,6 +156,8 @@ export default function App() {
   const [fastInput, setFastInput] = useState("");
   const [slowInput, setSlowInput] = useState("");
   const [entryConfirm, setEntryConfirm] = useState(ENTRY_CONFIRM.SINGLE);
+  const [exitBufferPct, setExitBufferPct] = useState(0);
+  const [adxMin, setAdxMin] = useState(null);
   const [favorites, setFavorites] = useState(loadFavorites);
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(loadDisclaimerAccepted);
 
@@ -249,13 +259,39 @@ export default function App() {
     [fastInput, slowInput, maType, optimizedMa]
   );
 
+  const adxSeries = useMemo(
+    () => (series.length ? computeAdxSeries(series) : null),
+    [series]
+  );
+
   const { trades, markers } = useMemo(
     () =>
       series.length
-        ? simulateTrades(series, fast, slow, chartMaType, { entryConfirm })
+        ? simulateTrades(series, fast, slow, chartMaType, {
+            entryConfirm,
+            exitBufferPct,
+            adxSeries,
+            adxMin,
+          })
         : { trades: [], markers: [] },
-    [series, fast, slow, chartMaType, entryConfirm]
+    [series, fast, slow, chartMaType, entryConfirm, exitBufferPct, adxSeries, adxMin]
   );
+
+  // Undershoot is always measured with SMA (same as the bakeoff / nightly scan MA type).
+  const undershoot = useMemo(() => {
+    if (!series.length) return null;
+    return computeUndershootEvents(series, fast, slow);
+  }, [series, fast, slow]);
+
+  function applyUndershootBuffer(useMedian) {
+    if (!undershoot) return;
+    const { bufferPct } = bufferFromUndershoot(undershoot, {
+      useMedian,
+      minEvents: UNDERSHOOT_MIN_EVENTS,
+      maxBufferPct: UNDERSHOOT_MAX_BUFFER,
+    });
+    setExitBufferPct(Number(bufferPct.toFixed(2)));
+  }
 
   const tradesDisplay = useMemo(() => {
     const asOfDate = series.length ? series[series.length - 1].date : null;
@@ -320,6 +356,15 @@ export default function App() {
             />
             Slow {chartMaType.toUpperCase()}
           </div>
+          {exitBufferPct > 0 ? (
+            <div className="ma-legend-item">
+              <span
+                className="ma-legend-swatch"
+                style={{ background: EXIT_BUFFER_COLOR }}
+              />
+              Exit buffer
+            </div>
+          ) : null}
         </div>
 
         <form className="sidebar-form" onSubmit={onSubmit}>
@@ -403,6 +448,84 @@ export default function App() {
             </option>
           </select>
         </label>
+        <label className="ma-controls-field">
+          <span>Exit buffer %</span>
+          <select
+            value={exitBufferPct}
+            onChange={(e) => setExitBufferPct(Number(e.target.value))}
+            aria-label="Exit buffer percent under fast MA"
+          >
+            {!EXIT_BUFFER_PRESETS.includes(exitBufferPct) ? (
+              <option value={exitBufferPct}>{exitBufferPct}%</option>
+            ) : null}
+            <option value={0}>0 (none)</option>
+            <option value={0.5}>0.5%</option>
+            <option value={1}>1%</option>
+            <option value={1.5}>1.5%</option>
+            <option value={2}>2%</option>
+            <option value={3}>3%</option>
+            <option value={4}>4%</option>
+            <option value={5}>5%</option>
+          </select>
+        </label>
+        {undershoot ? (
+          <div className="undershoot-box">
+            <p className="undershoot-line">
+              Undershoot avg {undershoot.meanUndershootPct != null
+                ? `${undershoot.meanUndershootPct.toFixed(2)}%`
+                : "n/a"}
+              {" · "}
+              med {undershoot.medianUndershootPct != null
+                ? `${undershoot.medianUndershootPct.toFixed(2)}%`
+                : "n/a"}
+              {" · "}
+              {undershoot.eventCount} events
+            </p>
+            <div className="undershoot-actions">
+              <button
+                type="button"
+                className="undershoot-btn"
+                onClick={() => applyUndershootBuffer(false)}
+                disabled={undershoot.eventCount < UNDERSHOOT_MIN_EVENTS}
+              >
+                Use avg
+              </button>
+              <button
+                type="button"
+                className="undershoot-btn"
+                onClick={() => applyUndershootBuffer(true)}
+                disabled={undershoot.eventCount < UNDERSHOOT_MIN_EVENTS}
+              >
+                Use med
+              </button>
+            </div>
+            {undershoot.eventCount < UNDERSHOOT_MIN_EVENTS ? (
+              <p className="undershoot-note">
+                Need {UNDERSHOOT_MIN_EVENTS}+ events to apply (uses buffer 0).
+              </p>
+            ) : (
+              <p className="undershoot-note">
+                Cap {UNDERSHOOT_MAX_BUFFER}%. Sets exit buffer; amber line on chart.
+              </p>
+            )}
+          </div>
+        ) : null}
+        <label className="ma-controls-field">
+          <span>ADX gate</span>
+          <select
+            value={adxMin ?? ""}
+            onChange={(e) =>
+              setAdxMin(e.target.value === "" ? null : Number(e.target.value))
+            }
+            aria-label="ADX regime gate on new opens"
+          >
+            <option value="">Off</option>
+            <option value={15}>&gt; 15</option>
+            <option value={20}>&gt; 20</option>
+            <option value={25}>&gt; 25</option>
+            <option value={30}>&gt; 30</option>
+          </select>
+        </label>
         </div>
 
         <div className="sidebar-trades-help" aria-label="Opens and closes column definitions">
@@ -442,6 +565,7 @@ export default function App() {
                   fastPeriod={fast}
                   slowPeriod={slow}
                   maType={chartMaType}
+                  exitBufferPct={exitBufferPct}
                 />
               </>
             ) : (
