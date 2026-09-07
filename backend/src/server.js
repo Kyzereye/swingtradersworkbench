@@ -12,6 +12,9 @@ import {
   loadOptimizedMaForSymbol,
   loadTopPerformers,
   loadMaCrossoverTopPerformers,
+  loadMaCrossoverYesterdaySignals,
+  loadMaCrossoverPairForSymbol,
+  loadMaCrossoverDowStocks,
   parseTopPerformerQuery,
   searchSymbols,
 } from "./scanData.js";
@@ -120,6 +123,49 @@ app.get("/api/systems/ma-crossover/top-performers", async (req, res) => {
     console.error(err);
     res.status(500).json({
       error: err.message || "MA crossover top performers query failed",
+    });
+  }
+});
+
+app.get("/api/systems/ma-crossover/yesterday-signals", async (_req, res) => {
+  try {
+    const result = await loadMaCrossoverYesterdaySignals();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "MA crossover yesterday signals query failed",
+    });
+  }
+});
+
+app.get("/api/systems/ma-crossover/pair", async (req, res) => {
+  const symbol = normalizeSymbol(
+    typeof req.query.symbol === "string" ? req.query.symbol : ""
+  );
+  if (!symbol) {
+    res.status(400).json({ error: "Query param symbol is required" });
+    return;
+  }
+  try {
+    const pair = await loadMaCrossoverPairForSymbol(symbol);
+    res.json({ symbol, pair });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "MA crossover pair query failed",
+    });
+  }
+});
+
+app.get("/api/systems/ma-crossover/dow", async (_req, res) => {
+  try {
+    const result = await loadMaCrossoverDowStocks();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "MA crossover Dow stocks query failed",
     });
   }
 });

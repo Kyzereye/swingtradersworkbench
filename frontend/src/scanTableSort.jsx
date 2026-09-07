@@ -32,6 +32,12 @@ function compareScanRows(a, b, key) {
       if (bv == null) return -1;
       return av - bv;
     }
+    case "signal":
+      return String(a.signal ?? "").localeCompare(String(b.signal ?? ""));
+    case "signalDate":
+      return String(a.signalDate ?? "").localeCompare(String(b.signalDate ?? ""));
+    case "assetType":
+      return String(a.assetType ?? "").localeCompare(String(b.assetType ?? ""));
     default:
       return 0;
   }

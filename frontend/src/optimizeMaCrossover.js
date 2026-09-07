@@ -1,19 +1,31 @@
 import { buildSmaIndexCacheForPeriods } from "./ma.js";
 import { simulateMaCrossoverWithMaCache } from "./maCrossoverSignals.js";
 
-const FAST_MIN = 8;
-const FAST_MAX = 30;
-const SLOW_MIN = 30;
+const FAST_MIN = 10;
+const FAST_MAX = 50;
+const SLOW_MIN = 10;
 const SLOW_MAX = 100;
 const GRID_STEP = 2;
 const DEFAULT = { fast: 21, slow: 50 };
 
-/** 1-share P/L: closed exits + open leg marked at markPrice (last close). */
-export function runningTotalWithMtm(trades, markPrice) {
+/** ~2 trading years — used only for top-performers ranking metrics. */
+export const SCORE_BARS = 504;
+
+export function scoreWindowStart(bars) {
+  if (!bars?.length) return null;
+  if (bars.length <= SCORE_BARS) return bars[0].date;
+  return bars[bars.length - SCORE_BARS].date;
+}
+
+/**
+ * 1-share $ P/L: closed exits (+ optional window) + open leg marked at markPrice.
+ */
+export function runningTotalWithMtm(trades, markPrice, windowStart = null) {
   let total = 0;
   let any = false;
   for (const t of trades) {
     if (!t.open) {
+      if (windowStart && t.exitDate < windowStart) continue;
       total += t.exitPrice - t.entryPrice;
       any = true;
     } else if (markPrice != null && t.entryPrice) {
@@ -25,8 +37,8 @@ export function runningTotalWithMtm(trades, markPrice) {
 }
 
 /**
- * Grid-search SMA crossover pairs.
- * Score = sum of 1-share P/L (exit − entry); open trade marked at last close.
+ * Grid-search SMA crossover pairs over full history.
+ * Score = sum of 1-share $ P/L; open marked at last close.
  * Highest score wins; fallback 21/50.
  */
 export function optimizeMaCrossover(bars) {

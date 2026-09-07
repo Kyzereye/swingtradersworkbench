@@ -241,10 +241,14 @@ CREATE TABLE IF NOT EXISTS system_ma_crossover_scan (
     running_total DECIMAL(12, 4) NOT NULL,
     running_total_pct DECIMAL(14, 4) NULL,
     trade_count INT UNSIGNED NOT NULL DEFAULT 0,
+    last_signal ENUM('entry', 'exit', 'open', 'none') NOT NULL DEFAULT 'none',
+    signal_date DATE NULL,
+    signal_close DECIMAL(12, 4) NULL,
     bar_count INT UNSIGNED NOT NULL,
     computed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     FOREIGN KEY (symbol_id) REFERENCES stock_symbols(id) ON DELETE CASCADE,
     UNIQUE KEY uk_symbol_asof (symbol_id, as_of_date),
-    KEY idx_asof_pct (as_of_date, running_total_pct)
+    KEY idx_asof_pct (as_of_date, running_total_pct),
+    KEY idx_asof_signal (as_of_date, last_signal)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

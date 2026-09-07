@@ -1,5 +1,6 @@
 /**
- * Optimize SMA crossover per symbol (max 1-share $ P/L) → system_ma_crossover_scan.
+ * Optimize SMA crossover per symbol (max 1-share $ P/L, full history)
+ * → system_ma_crossover_scan (stored totals = last ~2y for top performers).
  *
  *   npm run analyze-ma-crossover
  *   npm run analyze-ma-crossover -- --symbol AAPL
@@ -9,7 +10,7 @@
 import { scanMaCrossover } from "../frontend/src/scanMaCrossover.js";
 import { closePool } from "../backend/src/db.js";
 import {
-  listScannableSymbols,
+  listActiveSymbols,
   loadBarsForSymbol,
   upsertMaCrossoverScanRow,
 } from "../backend/src/scanData.js";
@@ -51,9 +52,9 @@ async function analyzeOne(sym) {
 async function main() {
   const { symbol, limit } = parseArgs(process.argv);
 
-  let symbols = symbol ? [symbol] : await listScannableSymbols();
+  let symbols = symbol ? [symbol] : await listActiveSymbols();
   if (!symbols.length) {
-    console.error("No symbols to analyze in stock_symbols.");
+    console.error("No active symbols to analyze in stock_symbols.");
     process.exitCode = 1;
     return;
   }
@@ -80,7 +81,7 @@ async function main() {
         const rt =
           `${r.runningTotal >= 0 ? "+" : ""}${r.runningTotal.toFixed(2)}`;
         console.log(
-          `${sym.padEnd(6)} ${r.optFast}/${r.optSlow}  RT ${rt}  ${pct}  trades ${r.tradeCount}`
+          `${sym.padEnd(6)} ${r.optFast}/${r.optSlow}  RT ${rt}  ${pct}  trades ${r.tradeCount}  ${r.lastSignal}`
         );
       } else {
         skipped++;

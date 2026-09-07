@@ -3,6 +3,9 @@ import SymbolAutocomplete from "./SymbolAutocomplete.jsx";
 import MaCrossoverChart from "./MaCrossoverChart.jsx";
 import OpensClosesTable from "./OpensClosesTable.jsx";
 import TopPerformersDialog from "./TopPerformersDialog.jsx";
+import YesterdaySignalsDialog from "./YesterdaySignalsDialog.jsx";
+import DowStocksDialog from "./DowStocksDialog.jsx";
+import MaCrossoverProblemsDialog from "./MaCrossoverProblemsDialog.jsx";
 import { simulateMaCrossover } from "./maCrossoverSignals.js";
 
 const DEFAULT_SYMBOL = "AAPL";
@@ -28,9 +31,17 @@ export default function TaSystemDashboard({ system }) {
   const [slowInput, setSlowInput] = useState("50");
   const [topOpen, setTopOpen] = useState(false);
   const [topRows, setTopRows] = useState([]);
-  const [topAsOf, setTopAsOf] = useState(null);
   const [topLoading, setTopLoading] = useState(false);
   const [topError, setTopError] = useState(null);
+  const [signalsOpen, setSignalsOpen] = useState(false);
+  const [signalRows, setSignalRows] = useState([]);
+  const [signalsLoading, setSignalsLoading] = useState(false);
+  const [signalsError, setSignalsError] = useState(null);
+  const [dowOpen, setDowOpen] = useState(false);
+  const [dowRows, setDowRows] = useState([]);
+  const [dowLoading, setDowLoading] = useState(false);
+  const [dowError, setDowError] = useState(null);
+  const [problemsOpen, setProblemsOpen] = useState(false);
 
   const isMaCrossover = system?.id === "ma-crossover";
   const fast = parsePeriod(fastInput, 21);
@@ -51,14 +62,29 @@ export default function TaSystemDashboard({ system }) {
     setError("");
     try {
       const q = new URLSearchParams({ symbol: next });
-      const res = await fetch(`/api/daily-stock-data?${q}`);
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(body.error || `Request failed (${res.status})`);
+      const [barsRes, pairRes] = await Promise.all([
+        fetch(`/api/daily-stock-data?${q}`),
+        fetch(`/api/systems/ma-crossover/pair?${q}`, { cache: "no-store" }),
+      ]);
+      const barsBody = await barsRes.json().catch(() => ({}));
+      if (!barsRes.ok) {
+        setError(barsBody.error || `Request failed (${barsRes.status})`);
         setBars([]);
         return;
       }
-      setBars(body.data ?? []);
+      setBars(barsBody.data ?? []);
+
+      const pairBody = await pairRes.json().catch(() => ({}));
+      const pair = pairRes.ok ? pairBody.pair : null;
+      if (pair?.fast != null && pair?.slow != null) {
+        setFastInput(String(pair.fast));
+        setSlowInput(String(pair.slow));
+        setMaType("sma");
+      } else {
+        setFastInput("21");
+        setSlowInput("50");
+        setMaType("sma");
+      }
     } catch (err) {
       setError(err?.message || String(err));
       setBars([]);
@@ -86,16 +112,13 @@ export default function TaSystemDashboard({ system }) {
         if (cancelled) return;
         if (!res.ok) {
           setTopRows([]);
-          setTopAsOf(null);
           setTopError(body.error || `Request failed (${res.status})`);
           return;
         }
         setTopRows(body.top ?? []);
-        setTopAsOf(body.asOfDate ?? null);
       } catch (err) {
         if (cancelled) return;
         setTopRows([]);
-        setTopAsOf(null);
         setTopError(err?.message || "Top performers request failed");
       } finally {
         if (!cancelled) setTopLoading(false);
@@ -106,15 +129,83 @@ export default function TaSystemDashboard({ system }) {
     };
   }, [topOpen, isMaCrossover]);
 
+  useEffect(() => {
+    if (!signalsOpen || !isMaCrossover) return undefined;
+    let cancelled = false;
+    (async () => {
+      setSignalsLoading(true);
+      setSignalsError(null);
+      try {
+        const res = await fetch(
+          "/api/systems/ma-crossover/yesterday-signals",
+          { cache: "no-store" }
+        );
+        const body = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) {
+          setSignalRows([]);
+          setSignalsError(body.error || `Request failed (${res.status})`);
+          return;
+        }
+        setSignalRows(body.signals ?? []);
+      } catch (err) {
+        if (cancelled) return;
+        setSignalRows([]);
+        setSignalsError(err?.message || "Yesterday signals request failed");
+      } finally {
+        if (!cancelled) setSignalsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [signalsOpen, isMaCrossover]);
+
+  useEffect(() => {
+    if (!dowOpen || !isMaCrossover) return undefined;
+    let cancelled = false;
+    (async () => {
+      setDowLoading(true);
+      setDowError(null);
+      try {
+        const res = await fetch("/api/systems/ma-crossover/dow", {
+          cache: "no-store",
+        });
+        const body = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) {
+          setDowRows([]);
+          setDowError(body.error || `Request failed (${res.status})`);
+          return;
+        }
+        setDowRows(body.stocks ?? []);
+      } catch (err) {
+        if (cancelled) return;
+        setDowRows([]);
+        setDowError(err?.message || "Dow stocks request failed");
+      } finally {
+        if (!cancelled) setDowLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dowOpen, isMaCrossover]);
+
   function onSubmit(e) {
     e.preventDefault();
     loadSymbol(input);
   }
 
   function onSelectTopRow(row) {
-    if (row.optFast != null) setFastInput(String(row.optFast));
-    if (row.optSlow != null) setSlowInput(String(row.optSlow));
-    setMaType("sma");
+    loadSymbol(row.symbol);
+  }
+
+  function onSelectSignalRow(row) {
+    loadSymbol(row.symbol);
+  }
+
+  function onSelectDowRow(row) {
     loadSymbol(row.symbol);
   }
 
@@ -182,6 +273,27 @@ export default function TaSystemDashboard({ system }) {
             >
               Top performers
             </button>
+            <button
+              type="button"
+              className="sidebar-top-performers"
+              onClick={() => setSignalsOpen(true)}
+            >
+              Yesterday&apos;s signals
+            </button>
+            <button
+              type="button"
+              className="sidebar-top-performers"
+              onClick={() => setDowOpen(true)}
+            >
+              Dow 30
+            </button>
+            <button
+              type="button"
+              className="sidebar-top-performers"
+              onClick={() => setProblemsOpen(true)}
+            >
+              Problems with MA crossovers
+            </button>
           </div>
         ) : null}
       </aside>
@@ -207,20 +319,53 @@ export default function TaSystemDashboard({ system }) {
       </main>
 
       {isMaCrossover ? (
-        <TopPerformersDialog
-          open={topOpen}
-          onClose={() => setTopOpen(false)}
-          title="MA crossover — top performers"
-          subtitle={
-            topAsOf
-              ? `Optimized SMA crossover (1-share $ P/L) · as of ${topAsOf}`
-              : "Optimized SMA crossover (1-share $ P/L)"
-          }
-          rows={topRows}
-          loading={topLoading}
-          error={topError}
-          onSelectRow={onSelectTopRow}
-        />
+        <>
+          <TopPerformersDialog
+            open={topOpen}
+            onClose={() => setTopOpen(false)}
+            title="MA crossover — top performers"
+            subtitle="Highest ~2y score (1-share $ P/L) · stock & ETF"
+            note={
+              "The top performers were sorted by profit over about the last 2 years (percent). " +
+              "The MA pair was chosen using the stock’s full price history. " +
+              "Percent gains can look huge next to dollar gains — " +
+              "open the chart’s opens & closes table to compare.\n\n" +
+              "Be wary, some of the the P/L and P/L% can be misleading.  Review the chart will often show why." +
+              "Also review the 'Problems with the MA Crossover system'"
+            }
+            rows={topRows}
+            loading={topLoading}
+            error={topError}
+            onSelectRow={onSelectTopRow}
+          />
+          <YesterdaySignalsDialog
+            open={signalsOpen}
+            onClose={() => setSignalsOpen(false)}
+            title="MA crossover — yesterday's signals"
+            subtitle="Entry/exit on each symbol's last trading session (all assets)"
+            note="Close is the signal-day close (when the cross fired), not the next-open fill. Session dates differ by market (e.g. stocks vs forex)."
+            rows={signalRows}
+            loading={signalsLoading}
+            error={signalsError}
+            onSelectRow={onSelectSignalRow}
+          />
+          <DowStocksDialog
+            open={dowOpen}
+            onClose={() => setDowOpen(false)}
+            title="MA crossover — Dow 30"
+            subtitle={"This is a quick list of the Dow stocks.  Profit for stock is calculated of the about the last 2 years.  " +
+            "One share was bought and sold to calculate the profit or loss."
+            }
+            rows={dowRows}
+            loading={dowLoading}
+            error={dowError}
+            onSelectRow={onSelectDowRow}
+          />
+          <MaCrossoverProblemsDialog
+            open={problemsOpen}
+            onClose={() => setProblemsOpen(false)}
+          />
+        </>
       ) : null}
     </div>
   );

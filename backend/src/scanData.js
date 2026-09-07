@@ -1,4 +1,5 @@
 import { getPool } from "./db.js";
+import { DOW30_SYMBOLS } from "./dow30.js";
 
 const HISTORY_YEARS = Number(process.env.HISTORY_YEARS) || 3;
 
@@ -39,7 +40,7 @@ async function listSymbols() {
   return rows.map((r) => String(r.symbol).toUpperCase());
 }
 
-/** Active stocks/ETFs for nightly scans (excludes crypto/forex). */
+/** Active stocks/ETFs for Chart nightly scan (excludes crypto/forex). */
 export async function listScannableSymbols() {
   const pool = getPool();
   try {
@@ -48,6 +49,23 @@ export async function listScannableSymbols() {
       SELECT symbol FROM stock_symbols
       WHERE is_active = 1
         AND asset_type IN ('stock', 'etf')
+      ORDER BY symbol ASC
+      `
+    );
+    return rows.map((r) => String(r.symbol).toUpperCase());
+  } catch {
+    return listSymbols();
+  }
+}
+
+/** All active symbols (stock, ETF, forex, crypto, …) for Systems MA crossover. */
+export async function listActiveSymbols() {
+  const pool = getPool();
+  try {
+    const [rows] = await pool.execute(
+      `
+      SELECT symbol FROM stock_symbols
+      WHERE is_active = 1
       ORDER BY symbol ASC
       `
     );
@@ -95,6 +113,27 @@ export async function loadOptimizedMaForSymbol(symbol) {
     LIMIT 1
     `,
     [symbol]
+  );
+  if (!rows.length) return null;
+  const fast = Number(rows[0].opt_fast);
+  const slow = Number(rows[0].opt_slow);
+  if (!Number.isFinite(fast) || !Number.isFinite(slow)) return null;
+  return { fast, slow };
+}
+
+/** Latest Systems MA crossover pair from system_ma_crossover_scan, or null. */
+export async function loadMaCrossoverPairForSymbol(symbol) {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT scan.opt_fast, scan.opt_slow
+    FROM system_ma_crossover_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    WHERE s.symbol = ?
+    ORDER BY scan.as_of_date DESC
+    LIMIT 1
+    `,
+    [String(symbol).trim().toUpperCase()]
   );
   if (!rows.length) return null;
   const fast = Number(rows[0].opt_fast);
@@ -184,8 +223,9 @@ export async function upsertMaCrossoverScanRow(symbol, scan) {
     `
     INSERT INTO system_ma_crossover_scan (
       symbol_id, as_of_date, opt_fast, opt_slow, opt_used_default,
-      running_total, running_total_pct, trade_count, bar_count
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      running_total, running_total_pct, trade_count,
+      last_signal, signal_date, signal_close, bar_count
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE
       opt_fast = VALUES(opt_fast),
       opt_slow = VALUES(opt_slow),
@@ -193,6 +233,9 @@ export async function upsertMaCrossoverScanRow(symbol, scan) {
       running_total = VALUES(running_total),
       running_total_pct = VALUES(running_total_pct),
       trade_count = VALUES(trade_count),
+      last_signal = VALUES(last_signal),
+      signal_date = VALUES(signal_date),
+      signal_close = VALUES(signal_close),
       bar_count = VALUES(bar_count),
       computed_at = CURRENT_TIMESTAMP
     `,
@@ -205,13 +248,138 @@ export async function upsertMaCrossoverScanRow(symbol, scan) {
       scan.runningTotal,
       scan.runningTotalPct,
       scan.tradeCount,
+      scan.lastSignal,
+      scan.signalDate,
+      scan.signalClose,
       scan.barCount,
     ]
   );
 }
 
 /**
- * Latest as_of_date top N by compounded running P/L % (fixed 21/50 crossover).
+ * Entry/exit signals on each symbol's last trading session (all asset types).
+ * Session date is that symbol's latest bar / scan as_of_date.
+ */
+export async function loadMaCrossoverYesterdaySignals() {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      s.asset_type,
+      scan.last_signal,
+      scan.signal_date,
+      scan.signal_close,
+      scan.opt_fast,
+      scan.opt_slow,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_ma_crossover_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_ma_crossover_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE scan.last_signal IN ('entry', 'exit')
+    ORDER BY scan.signal_date DESC, s.symbol ASC
+    `
+  );
+
+  if (!rows.length) {
+    return { signals: [], computedAt: null };
+  }
+
+  return {
+    computedAt: rows[0].computed_at ?? null,
+    signals: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      assetType: row.asset_type ? String(row.asset_type) : null,
+      signal: String(row.last_signal),
+      signalDate: formatDateOnly(row.signal_date),
+      price:
+        row.signal_close != null ? Number(row.signal_close) : null,
+      optFast: Number(row.opt_fast),
+      optSlow: Number(row.opt_slow),
+    })),
+  };
+}
+
+/**
+ * Dow 30: latest MA crossover scan row each (~2y running P/L metrics).
+ * Always returns all 30 tickers; missing scans have null totals.
+ */
+export async function loadMaCrossoverDowStocks() {
+  const pool = getPool();
+  const placeholders = DOW30_SYMBOLS.map(() => "?").join(",");
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_fast,
+      scan.opt_slow,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_ma_crossover_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_ma_crossover_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.symbol IN (${placeholders})
+    `,
+    DOW30_SYMBOLS
+  );
+
+  const bySymbol = new Map();
+  for (const row of rows) {
+    bySymbol.set(String(row.symbol).toUpperCase(), {
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optFast: Number(row.opt_fast),
+      optSlow: Number(row.opt_slow),
+      runningTotal:
+        row.running_total != null ? Number(row.running_total) : null,
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+    });
+  }
+
+  const stocks = DOW30_SYMBOLS.map(
+    (symbol) =>
+      bySymbol.get(symbol) ?? {
+        symbol,
+        companyName: null,
+        optFast: null,
+        optSlow: null,
+        runningTotal: null,
+        runningTotalPct: null,
+      }
+  );
+
+  return {
+    computedAt: rows[0]?.computed_at ?? null,
+    stocks,
+  };
+}
+
+/**
+ * Top stock/ETF by latest scan score (last ~2y 1-share P/L %).
+ * One row per symbol (its newest as_of_date); calendar day is not a filter.
  */
 export async function loadMaCrossoverTopPerformers(topN = 50) {
   const lim = Math.min(100, Math.max(1, Math.floor(topN) || 50));
@@ -230,13 +398,14 @@ export async function loadMaCrossoverTopPerformers(topN = 50) {
       scan.computed_at
     FROM system_ma_crossover_scan scan
     INNER JOIN stock_symbols s ON s.id = scan.symbol_id
-    WHERE scan.as_of_date = (
-      SELECT as_of_date
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
       FROM system_ma_crossover_scan
-      ORDER BY as_of_date DESC
-      LIMIT 1
-    )
-      AND s.asset_type IN ('stock', 'etf')
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.asset_type IN ('stock', 'etf')
       AND scan.trade_count >= ${MIN_TRADES_FOR_TOP}
     ORDER BY scan.running_total_pct IS NULL ASC,
              scan.running_total_pct DESC
@@ -249,7 +418,7 @@ export async function loadMaCrossoverTopPerformers(topN = 50) {
   }
 
   return {
-    asOfDate: formatDateOnly(rows[0].as_of_date),
+    asOfDate: null,
     computedAt: rows[0].computed_at ?? null,
     top: rows.map((row) => ({
       symbol: String(row.symbol).toUpperCase(),

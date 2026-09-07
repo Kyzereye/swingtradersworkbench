@@ -349,6 +349,53 @@ button:disabled {
   content: "▾";
 }
 
+.trades-opens-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.trades-opens-summary-note {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: right;
+}
+
+.ma-problems-dialog {
+  max-width: 36rem;
+}
+
+.ma-problems-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.ma-problems-section {
+  margin: 0;
+}
+
+.ma-problems-heading {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.ma-problems-text,
+.ma-problems-closing {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.ma-problems-closing {
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border);
+}
+
 .expand-body {
   padding: 0 1rem 1rem;
   border-top: 1px solid var(--border);
@@ -1205,6 +1252,14 @@ button:disabled {
 .app-dialog-subtitle {
   margin: 0.35rem 0 0;
   font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.app-dialog-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  white-space: pre-line;
   color: var(--muted);
 }
 

@@ -1,25 +1,27 @@
 import { useEffect, useState } from "react";
-import { formatPct } from "./optimizeMa.js";
 import { SortableTh, useScanTableSort } from "./scanTableSort.jsx";
 
-function formatPnl(v) {
-  if (v == null || !Number.isFinite(Number(v))) return "—";
-  const n = Number(v);
-  const sign = n > 0 ? "+" : "";
-  return `${sign}${n.toFixed(2)}`;
+const DEFAULT_VISIBLE = 25;
+
+function formatClose(price) {
+  if (price == null || !Number.isFinite(Number(price))) return "—";
+  return `$${Number(price).toFixed(2)}`;
 }
 
-const DEFAULT_VISIBLE = 10;
+function formatSignal(signal) {
+  if (signal === "entry") return "Entry";
+  if (signal === "exit") return "Exit";
+  return signal ?? "—";
+}
 
 /**
- * Reusable top-performers dialog (Systems and future lists).
- *
- * rows: { symbol, companyName?, runningTotal?, runningTotalPct?, tradeCount? }
+ * Dialog: entry/exit on each symbol's last trading session.
+ * rows: { symbol, companyName?, assetType?, signal, signalDate?, price?, optFast?, optSlow? }
  */
-export default function TopPerformersDialog({
+export default function YesterdaySignalsDialog({
   open,
   onClose,
-  title = "Top performers",
+  title = "Yesterday's signals",
   subtitle = null,
   note = null,
   rows = [],
@@ -31,7 +33,7 @@ export default function TopPerformersDialog({
   const [visibleCount, setVisibleCount] = useState(initialVisible);
   const { sortedRows, sortKey, sortDir, toggleSort } = useScanTableSort(
     rows,
-    "pnlPct"
+    "symbol"
   );
 
   useEffect(() => {
@@ -49,7 +51,7 @@ export default function TopPerformersDialog({
 
   if (!open) return null;
 
-  const showTrades = rows.some((r) => r.tradeCount != null);
+  const showAsset = rows.some((r) => r.assetType);
   const visible = sortedRows.slice(0, visibleCount);
   const canShowMore = visibleCount < sortedRows.length;
 
@@ -70,19 +72,17 @@ export default function TopPerformersDialog({
         className="app-dialog top-performers-dialog"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="top-performers-title"
+        aria-labelledby="yesterday-signals-title"
       >
         <header className="app-dialog-header">
           <div>
-            <h2 id="top-performers-title" className="app-dialog-title">
+            <h2 id="yesterday-signals-title" className="app-dialog-title">
               {title}
             </h2>
             {subtitle ? (
               <p className="app-dialog-subtitle">{subtitle}</p>
             ) : null}
-            {note ? (
-              <p className="app-dialog-note">{note}</p>
-            ) : null}
+            {note ? <p className="app-dialog-note">{note}</p> : null}
           </div>
           <button
             type="button"
@@ -112,49 +112,47 @@ export default function TopPerformersDialog({
                     >
                       Symbol
                     </SortableTh>
-                    <SortableTh
-                      col="company"
-                      sortKey={sortKey}
-                      sortDir={sortDir}
-                      onSort={toggleSort}
-                    >
-                      Company
-                    </SortableTh>
-                    <SortableTh
-                      col="pnl"
-                      sortKey={sortKey}
-                      sortDir={sortDir}
-                      onSort={toggleSort}
-                      className="scanner-col-num"
-                    >
-                      P/L
-                    </SortableTh>
-                    <SortableTh
-                      col="pnlPct"
-                      sortKey={sortKey}
-                      sortDir={sortDir}
-                      onSort={toggleSort}
-                      className="scanner-col-num"
-                    >
-                      P/L%
-                    </SortableTh>
-                    {showTrades ? (
+                    {showAsset ? (
                       <SortableTh
-                        col="tradeCount"
+                        col="assetType"
                         sortKey={sortKey}
                         sortDir={sortDir}
                         onSort={toggleSort}
-                        className="scanner-col-num"
                       >
-                        Trades
+                        Asset
                       </SortableTh>
                     ) : null}
+                    <SortableTh
+                      col="signal"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={toggleSort}
+                    >
+                      Signal
+                    </SortableTh>
+                    <SortableTh
+                      col="price"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={toggleSort}
+                      className="scanner-col-num"
+                    >
+                      Close
+                    </SortableTh>
+                    <SortableTh
+                      col="signalDate"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={toggleSort}
+                    >
+                      Session
+                    </SortableTh>
                   </tr>
                 </thead>
                 <tbody>
                   {visible.map((row, i) => (
                     <tr
-                      key={row.symbol}
+                      key={`${row.symbol}-${row.signal}-${row.signalDate}`}
                       onClick={() => handleSelect(row)}
                       title={onSelectRow ? "Open chart" : undefined}
                       className={
@@ -163,27 +161,21 @@ export default function TopPerformersDialog({
                     >
                       <td>{i + 1}</td>
                       <td>{row.symbol}</td>
-                      <td className="daily-signals-company">
-                        {row.companyName ?? "—"}
-                      </td>
-                      <td className="scanner-col-num">
-                        {formatPnl(row.runningTotal)}
-                      </td>
-                      <td className="scanner-col-num">
-                        {formatPct(row.runningTotalPct)}
-                      </td>
-                      {showTrades ? (
-                        <td className="scanner-col-num">
-                          {row.tradeCount ?? "—"}
-                        </td>
+                      {showAsset ? (
+                        <td>{row.assetType ?? "—"}</td>
                       ) : null}
+                      <td>{formatSignal(row.signal)}</td>
+                      <td className="scanner-col-num">
+                        {formatClose(row.price)}
+                      </td>
+                      <td>{row.signalDate ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : !error ? (
-            <p className="scanner-empty">No top performers yet.</p>
+            <p className="scanner-empty">No entry/exit signals on last sessions.</p>
           ) : null}
         </div>
 
