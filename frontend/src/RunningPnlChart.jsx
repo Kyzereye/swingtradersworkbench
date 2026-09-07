@@ -3,19 +3,19 @@ import { LineSeries, createChart } from "lightweight-charts";
 
 const CHART_HEIGHT = 220;
 
-/** Compounded running P/L % after each closed trade (point at exit date). */
+/** Running sum of per-trade P/L % after each closed trade (point at exit date). */
 export function runningPnlPctPoints(trades) {
   const chronological = [...trades].sort((a, b) =>
     a.entryDate.localeCompare(b.entryDate)
   );
-  let factor = 1;
+  let runningPct = 0;
   const points = [];
   for (const t of chronological) {
-    if (!t.open) {
-      factor *= t.exitPrice / t.entryPrice;
+    if (!t.open && t.entryPrice) {
+      runningPct += (t.exitPrice / t.entryPrice - 1) * 100;
       points.push({
         time: t.exitDate,
-        value: (factor - 1) * 100,
+        value: runningPct,
       });
     }
   }

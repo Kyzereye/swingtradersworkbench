@@ -39,7 +39,7 @@ async function listSymbols() {
   return rows.map((r) => String(r.symbol).toUpperCase());
 }
 
-/** Active US equities for MA ingest + nightly scan (excludes crypto/forex). */
+/** Active stocks/ETFs for nightly scans (excludes crypto/forex). */
 export async function listScannableSymbols() {
   const pool = getPool();
   try {
@@ -47,6 +47,7 @@ export async function listScannableSymbols() {
       `
       SELECT symbol FROM stock_symbols
       WHERE is_active = 1
+        AND asset_type IN ('stock', 'etf')
       ORDER BY symbol ASC
       `
     );
@@ -158,6 +159,111 @@ export async function upsertScanRow(symbol, scan) {
       scan.barCount,
     ]
   );
+}
+
+/** Symbols with fewer closed trades than this are too thin to rank. */
+const MIN_TRADES_FOR_TOP = 5;
+
+async function resolveSymbolId(symbol) {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `SELECT id FROM stock_symbols WHERE symbol = ?`,
+    [symbol]
+  );
+  if (!rows.length) return null;
+  return Number(rows[0].id);
+}
+
+export async function upsertMaCrossoverScanRow(symbol, scan) {
+  const symbolId = await resolveSymbolId(symbol);
+  if (symbolId == null) {
+    throw new Error(`Unknown symbol: ${symbol}`);
+  }
+  const pool = getPool();
+  await pool.execute(
+    `
+    INSERT INTO system_ma_crossover_scan (
+      symbol_id, as_of_date, opt_fast, opt_slow, opt_used_default,
+      running_total, running_total_pct, trade_count, bar_count
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      opt_fast = VALUES(opt_fast),
+      opt_slow = VALUES(opt_slow),
+      opt_used_default = VALUES(opt_used_default),
+      running_total = VALUES(running_total),
+      running_total_pct = VALUES(running_total_pct),
+      trade_count = VALUES(trade_count),
+      bar_count = VALUES(bar_count),
+      computed_at = CURRENT_TIMESTAMP
+    `,
+    [
+      symbolId,
+      scan.asOfDate,
+      scan.optFast,
+      scan.optSlow,
+      scan.optUsedDefault ? 1 : 0,
+      scan.runningTotal,
+      scan.runningTotalPct,
+      scan.tradeCount,
+      scan.barCount,
+    ]
+  );
+}
+
+/**
+ * Latest as_of_date top N by compounded running P/L % (fixed 21/50 crossover).
+ */
+export async function loadMaCrossoverTopPerformers(topN = 50) {
+  const lim = Math.min(100, Math.max(1, Math.floor(topN) || 50));
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_fast,
+      scan.opt_slow,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.trade_count,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_ma_crossover_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    WHERE scan.as_of_date = (
+      SELECT as_of_date
+      FROM system_ma_crossover_scan
+      ORDER BY as_of_date DESC
+      LIMIT 1
+    )
+      AND s.asset_type IN ('stock', 'etf')
+      AND scan.trade_count >= ${MIN_TRADES_FOR_TOP}
+    ORDER BY scan.running_total_pct IS NULL ASC,
+             scan.running_total_pct DESC
+    LIMIT ${lim}
+    `
+  );
+
+  if (!rows.length) {
+    return { asOfDate: null, computedAt: null, top: [] };
+  }
+
+  return {
+    asOfDate: formatDateOnly(rows[0].as_of_date),
+    computedAt: rows[0].computed_at ?? null,
+    top: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optFast: Number(row.opt_fast),
+      optSlow: Number(row.opt_slow),
+      runningTotal: Number(row.running_total),
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+      tradeCount: Number(row.trade_count),
+    })),
+  };
 }
 
 async function getLatestScanMeta() {

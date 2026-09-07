@@ -3,7 +3,9 @@ USE `StockPxLabs`;
 -- Disable foreign key checks so tables can be dropped in any order
 SET FOREIGN_KEY_CHECKS = 0;
 
-DROP TABLE IF EXISTS symbol_daily_scan, user_trades, user_usage, user_preferences, stock_performance_metrics, trading_signals, daily_stock_data, users, stock_symbols, roles;
+DROP TABLE IF EXISTS symbol_daily_scan, user_trades, user_usage, user_preferences, 
+stock_performance_metrics, trading_signals, daily_stock_data, users, stock_symbols, 
+roles, system_ma_crossover_scan;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -227,5 +229,22 @@ CREATE TABLE IF NOT EXISTS symbol_daily_scan (
     KEY idx_asof_running (as_of_date, running_total)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Existing DB: add P/L% column after deploy
--- ALTER TABLE symbol_daily_scan ADD COLUMN running_total_pct DECIMAL(10, 4) NULL AFTER running_total;
+-- Per-symbol MA crossover optimize results (Systems tab top performers)
+
+CREATE TABLE IF NOT EXISTS system_ma_crossover_scan (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    symbol_id INT NOT NULL,
+    as_of_date DATE NOT NULL,
+    opt_fast INT UNSIGNED NOT NULL,
+    opt_slow INT UNSIGNED NOT NULL,
+    opt_used_default TINYINT(1) NOT NULL DEFAULT 0,
+    running_total DECIMAL(12, 4) NOT NULL,
+    running_total_pct DECIMAL(14, 4) NULL,
+    trade_count INT UNSIGNED NOT NULL DEFAULT 0,
+    bar_count INT UNSIGNED NOT NULL,
+    computed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (symbol_id) REFERENCES stock_symbols(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_symbol_asof (symbol_id, as_of_date),
+    KEY idx_asof_pct (as_of_date, running_total_pct)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

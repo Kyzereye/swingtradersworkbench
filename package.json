@@ -9,7 +9,8 @@
     "get-bulk-price-data": "node scripts/get-bulk-price-data.mjs",
     "get-daily-price-data": "node scripts/get-daily-price-data.mjs",
     "analyze-symbols": "node scripts/analyze-symbols.mjs",
-    "pipeline:nightly": "npm run get-daily-price-data; npm run analyze-symbols"
+    "analyze-ma-crossover": "node scripts/analyze-ma-crossover.mjs",
+    "pipeline:nightly": "npm run get-daily-price-data; npm run analyze-symbols; npm run analyze-ma-crossover"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

@@ -11,6 +11,7 @@ import {
   loadScanForLatestDate,
   loadOptimizedMaForSymbol,
   loadTopPerformers,
+  loadMaCrossoverTopPerformers,
   parseTopPerformerQuery,
   searchSymbols,
 } from "./scanData.js";
@@ -103,6 +104,22 @@ app.get("/api/dashboard/top-performers", async (req, res) => {
     console.error(err);
     res.status(500).json({
       error: err.message || "Top performers query failed",
+    });
+  }
+});
+
+app.get("/api/systems/ma-crossover/top-performers", async (req, res) => {
+  const topN = Math.min(
+    100,
+    Math.max(1, Number.parseInt(String(req.query.top ?? "50"), 10) || 50)
+  );
+  try {
+    const result = await loadMaCrossoverTopPerformers(topN);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "MA crossover top performers query failed",
     });
   }
 });

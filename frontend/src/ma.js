@@ -23,15 +23,18 @@ function computeSma(bars, period) {
   return out;
 }
 
-/** SMA value per bar index (null until period bars exist). */
-export function buildSmaIndexCache(bars, minPeriod, maxPeriod) {
+/**
+ * SMA value per bar index (null until period bars exist), for just the periods
+ * asked for. A grid that only uses a handful of periods should pass them here
+ * rather than building every integer in a range.
+ */
+export function buildSmaIndexCacheForPeriods(bars, periods) {
   const n = bars.length;
   const closes = bars.map((b) => b.close);
   const cache = new Map();
-  const lo = Math.max(2, minPeriod);
-  const hi = Math.max(lo, maxPeriod);
 
-  for (let period = lo; period <= hi; period++) {
+  for (const period of new Set(periods)) {
+    if (!Number.isInteger(period) || period < 2 || cache.has(period)) continue;
     const values = new Array(n).fill(null);
     if (n >= period) {
       let sum = 0;
@@ -45,6 +48,15 @@ export function buildSmaIndexCache(bars, minPeriod, maxPeriod) {
     cache.set(period, values);
   }
   return cache;
+}
+
+/** SMA value per bar index for every period in [minPeriod, maxPeriod]. */
+export function buildSmaIndexCache(bars, minPeriod, maxPeriod) {
+  const lo = Math.max(2, minPeriod);
+  const hi = Math.max(lo, maxPeriod);
+  const periods = [];
+  for (let period = lo; period <= hi; period++) periods.push(period);
+  return buildSmaIndexCacheForPeriods(bars, periods);
 }
 
 export function computeMaSeries(bars, period, maType = "ema") {

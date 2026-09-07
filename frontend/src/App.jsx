@@ -10,8 +10,9 @@ import SymbolAutocomplete from "./SymbolAutocomplete.jsx";
 import TradingRules from "./TradingRules.jsx";
 import SymbolChangesTab from "./SymbolChangesTab.jsx";
 import UserDashboardTab from "./UserDashboardTab.jsx";
+import SystemsTab from "./SystemsTab.jsx";
 import DisclaimerDialog from "./DisclaimerDialog.jsx";
-import { formatPct } from "./optimizeMa.js";
+import OpensClosesTable from "./OpensClosesTable.jsx";
 import { ENTRY_CONFIRM, simulateTrades } from "./tradeSignals.js";
 
 const DEFAULT_SYMBOL = "AAPL";
@@ -61,11 +62,6 @@ function resolveChartMa({ fastInput, slowInput, maType, optimizedMa }) {
   return clampMaConfig(fast, slow, maType, DEFAULT_MA);
 }
 
-function formatPnl(v) {
-  const sign = v >= 0 ? "+" : "";
-  return `${sign}${v.toFixed(2)}`;
-}
-
 function formatDataSpan(fromDate, toDate) {
   if (!fromDate || !toDate) return "";
   const from = new Date(`${fromDate}T12:00:00`);
@@ -102,42 +98,10 @@ function formatChartMeta(companyName, sym, fromDate, toDate) {
   return parts.join(" - ");
 }
 
-function enrichTradesForTable(trades, asOfDate) {
-  const chronological = [...trades].sort((a, b) =>
-    a.entryDate.localeCompare(b.entryDate)
-  );
-  let runningTotal = 0;
-  let compoundFactor = 1;
-  let hasClosedTrade = false;
-  const enriched = chronological.map((t) => {
-    const tradePnl = t.open ? null : t.exitPrice - t.entryPrice;
-    const tradePnlPct =
-      t.open || !t.entryPrice ? null : (t.exitPrice / t.entryPrice - 1) * 100;
-    const end = t.open ? asOfDate : t.exitDate;
-    const daysInTrade =
-      t.entryDate && end
-        ? Math.max(
-            0,
-            Math.round(
-              (new Date(`${end}T12:00:00`) - new Date(`${t.entryDate}T12:00:00`)) /
-                86400000
-            )
-          )
-        : null;
-    if (tradePnl != null) {
-      runningTotal += tradePnl;
-      compoundFactor *= t.exitPrice / t.entryPrice;
-      hasClosedTrade = true;
-    }
-    const runningTotalPct = hasClosedTrade ? (compoundFactor - 1) * 100 : null;
-    return { ...t, tradePnl, tradePnlPct, daysInTrade, runningTotal, runningTotalPct };
-  });
-  return enriched.sort((a, b) => b.entryDate.localeCompare(a.entryDate));
-}
-
 export default function App() {
   const [page, setPage] = useState("app");
   const [tab, setTab] = useState("home");
+  const [systemsListKey, setSystemsListKey] = useState(0);
   const [symbol, setSymbol] = useState(DEFAULT_SYMBOL);
   const [input, setInput] = useState(DEFAULT_SYMBOL);
   const [loading, setLoading] = useState(false);
@@ -226,6 +190,13 @@ export default function App() {
     setTab("home");
   }
 
+  function onTabChange(id) {
+    setTab(id);
+    if (id === "systems") {
+      setSystemsListKey((k) => k + 1);
+    }
+  }
+
   function updateMaType(nextType) {
     const type = nextType === "ema" ? "ema" : "sma";
     setMaType(type);
@@ -257,10 +228,7 @@ export default function App() {
     [series, fast, slow, chartMaType, entryConfirm]
   );
 
-  const tradesDisplay = useMemo(() => {
-    const asOfDate = series.length ? series[series.length - 1].date : null;
-    return enrichTradesForTable(trades, asOfDate);
-  }, [trades, series]);
+  const asOfDate = series.length ? series[series.length - 1].date : null;
 
   const runningPnlPctSeries = useMemo(
     () => runningPnlPctPoints(trades),
@@ -282,7 +250,7 @@ export default function App() {
         <TradingRules />
       ) : (
         <>
-          <DashboardTabs tab={tab} onChange={setTab} />
+          <DashboardTabs tab={tab} onChange={onTabChange} />
           {tab === "home" ? (
             <UserDashboardTab
               onSelectSymbol={onSelectFromScanner}
@@ -298,6 +266,7 @@ export default function App() {
           {tab === "daily" ? (
             <DailySignals onSelectSymbol={onSelectFromScanner} />
           ) : null}
+          {tab === "systems" ? <SystemsTab key={systemsListKey} /> : null}
           {tab === "symbolchanges" ? <SymbolChangesTab /> : null}
           {tab === "chart" ? (
     <div className="app-layout">
@@ -417,7 +386,7 @@ export default function App() {
             <dt>Running P/L</dt>
             <dd>Sum of P/L from closed trades up to that row.</dd>
             <dt>Running P/L %</dt>
-            <dd>Compounded return from those closed trades: multiply (close ÷ open) for each, then − 1, × 100.</dd>
+            <dd>Sum of each closed trade’s P/L % up to that row (1 share per trade; not compounded).</dd>
           </dl>
         </div>
       </aside>
@@ -459,54 +428,7 @@ export default function App() {
           ) : null}
 
           {series.length && trades.length ? (
-            <details className="expand-panel">
-              <summary>
-                Opens &amp; closes ({trades.filter((t) => !t.open).length}
-                {trades.some((t) => t.open) ? ", 1 still open" : ""})
-              </summary>
-              <div className="expand-body">
-                <table className="trades-table">
-                  <thead>
-                    <tr>
-                      <th>Open</th>
-                      <th>Open price</th>
-                      <th>Close</th>
-                      <th>Close price</th>
-                      <th className="trades-col-num">DiT</th>
-                      <th className="trades-col-num">P/L</th>
-                      <th className="trades-col-num">P/L%</th>
-                      <th className="trades-col-num">Running P/L</th>
-                      <th className="trades-col-num">Running P/L %</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tradesDisplay.map((t, i) => (
-                      <tr key={`${t.entryDate}-${i}`}>
-                        <td>{t.entryDate}</td>
-                        <td>{t.entryPrice.toFixed(2)}</td>
-                        <td>{t.open ? "—" : t.exitDate}</td>
-                        <td>{t.open ? "—" : t.exitPrice.toFixed(2)}</td>
-                        <td className="trades-col-num">
-                          {t.daysInTrade == null ? "—" : t.daysInTrade}
-                        </td>
-                        <td className="trades-col-num">
-                          {t.tradePnl == null ? "—" : formatPnl(t.tradePnl)}
-                        </td>
-                        <td className="trades-col-num">
-                          {t.tradePnlPct == null ? "—" : formatPct(t.tradePnlPct)}
-                        </td>
-                        <td className="trades-col-num">
-                          {formatPnl(t.runningTotal)}
-                        </td>
-                        <td className="trades-col-num">
-                          {t.runningTotalPct == null ? "—" : formatPct(t.runningTotalPct)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </details>
+            <OpensClosesTable trades={trades} asOfDate={asOfDate} />
           ) : null}
         </>
         ) : null}

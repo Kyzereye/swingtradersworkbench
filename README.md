@@ -163,7 +163,7 @@ Ingest new bars, then run the symbol scan:
 0 18 * * 1-5 cd /path/to/DBMA-trading && /usr/bin/npm run pipeline:nightly >> /tmp/dbma-pipeline.log 2>&1
 ```
 
-`pipeline:nightly` runs: `get-daily-price-data` → `analyze-symbols`.
+`pipeline:nightly` runs: `get-daily-price-data` → `analyze-symbols` → `analyze-ma-crossover`.
 
 ### Separate price update and scan (optional)
 
@@ -245,7 +245,8 @@ Symbol list endpoints (append `?apikey=YOUR_KEY`):
 | `npm run get-bulk-price-data` | FMP bulk EOD (~3 years) |
 | `npm run get-daily-price-data` | FMP nightly EOD update |
 | `npm run analyze-symbols` | Nightly symbol scan → `symbol_daily_scan` |
-| `npm run pipeline:nightly` | `get-daily-price-data` then `analyze-symbols` |
+| `npm run analyze-ma-crossover` | MA crossover optimize → `system_ma_crossover_scan` |
+| `npm run pipeline:nightly` | Prices → `analyze-symbols` → `analyze-ma-crossover` |
 | `npm run get-symbols` | Refresh symbol list → `stock_symbols` |
 | `npm run sync-symbol-changes` | FMP renames/delistings → `stock_symbols` + `data/symbol-changes.log` |
 | `npm run optimize:ma -- AAPL` | CLI MA optimization for one symbol |

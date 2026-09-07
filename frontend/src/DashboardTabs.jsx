@@ -3,6 +3,7 @@ const TABS = [
   { id: "chart", label: "Chart" },
   { id: "signals", label: "Signals" },
   { id: "daily", label: "Daily log" },
+  { id: "systems", label: "Systems" },
   { id: "symbolchanges", label: "Symbol Changes" },
 ];
 

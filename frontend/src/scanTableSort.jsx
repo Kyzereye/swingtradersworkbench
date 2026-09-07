@@ -16,6 +16,14 @@ function compareScanRows(a, b, key) {
       if (bv == null) return -1;
       return av - bv;
     }
+    case "tradeCount": {
+      const av = a.tradeCount;
+      const bv = b.tradeCount;
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return av - bv;
+    }
     case "price": {
       const av = a.price;
       const bv = b.price;
@@ -30,7 +38,9 @@ function compareScanRows(a, b, key) {
 }
 
 function defaultSortDir(key) {
-  return key === "pnl" || key === "pnlPct" ? "desc" : "asc";
+  return key === "pnl" || key === "pnlPct" || key === "tradeCount"
+    ? "desc"
+    : "asc";
 }
 
 export function useScanTableSort(rows, initialKey = "symbol") {

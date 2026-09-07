@@ -13,15 +13,16 @@ function runningTotalFromTrades(trades) {
   return total;
 }
 
-/** Compounded percent return from closed trades (same trades as runningTotal). */
+/** Sum of per-trade P/L % from closed trades (1 share each; not compounded). */
 function runningTotalPctFromTrades(trades) {
   const closed = trades.filter((t) => !t.open);
   if (!closed.length) return null;
-  let factor = 1;
+  let total = 0;
   for (const t of closed) {
-    factor *= t.exitPrice / t.entryPrice;
+    if (!t.entryPrice) continue;
+    total += (t.exitPrice / t.entryPrice - 1) * 100;
   }
-  return (factor - 1) * 100;
+  return total;
 }
 
 /**
