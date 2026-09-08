@@ -58,7 +58,7 @@ export default function MaCrossoverProblemsDialog({ open, onClose }) {
         <header className="app-dialog-header">
           <div>
             <h2 id="ma-problems-title" className="app-dialog-title">
-              Problems with MA crossovers
+              Problems with MA crossovers 2
             </h2>
             <p className="app-dialog-subtitle">
               Why a classic fast/slow cross is a weak standalone stock strategy.

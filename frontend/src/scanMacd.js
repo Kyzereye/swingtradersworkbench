@@ -1,10 +1,9 @@
+import { optimizeMacd, scoreWindowStart } from "./optimizeMacd.js";
 import {
-  optimizeMaCrossover,
   runningTotalWithMtm,
-  scoreWindowStart,
-} from "./optimizeMaCrossover.js";
-import { runningTotalPctWithMtm } from "./util/tradePnl.js";
-import { simulateMaCrossover } from "./maCrossoverSignals.js";
+  runningTotalPctWithMtm,
+} from "./util/tradePnl.js";
+import { simulateMacd } from "./macdSignals.js";
 
 function tradeCountInWindow(trades, windowStart) {
   let n = 0;
@@ -18,10 +17,6 @@ function tradeCountInWindow(trades, windowStart) {
   return n;
 }
 
-/**
- * Classify relative to the symbol's last bar (last trading session).
- * entry / exit — cross marker on that bar; open — in trade from earlier; none.
- */
 function classifyLastSignal(trades, markers, lastBarDate) {
   const onLast = markers.filter((m) => m.time === lastBarDate);
   if (onLast.some((m) => m.text === "Close")) {
@@ -30,32 +25,28 @@ function classifyLastSignal(trades, markers, lastBarDate) {
   if (onLast.some((m) => m.text === "Open")) {
     return { lastSignal: "entry", signalDate: lastBarDate };
   }
-
   const openTrade = trades.find((t) => t.open);
   if (openTrade) {
     return { lastSignal: "open", signalDate: openTrade.entryDate };
   }
-
   return { lastSignal: "none", signalDate: null };
 }
 
 /**
- * Per-symbol optimized SMA crossover → system_ma_crossover_scan.
- * Pair chosen by full-history 1-share $ P/L.
- * Stored running totals / trade_count are last ~2y only (top performers).
+ * Optimized MACD → system_macd_scan.
+ * Periods from full-history $ P/L; stored totals last ~2y.
  */
-export function scanMaCrossover(bars) {
+export function scanMacd(bars) {
   if (!bars?.length) return null;
 
   const lastBar = bars[bars.length - 1];
   const asOfDate = lastBar.date;
   const markPrice = lastBar.close;
   const topWindowStart = scoreWindowStart(bars);
-  const { best, usedDefault } = optimizeMaCrossover(bars);
-  const fast = best.fast;
-  const slow = best.slow;
+  const { best, usedDefault } = optimizeMacd(bars);
+  const { fast, slow, signal } = best;
 
-  const { trades, markers } = simulateMaCrossover(bars, fast, slow, "sma");
+  const { trades, markers } = simulateMacd(bars, fast, slow, signal);
   const { lastSignal, signalDate } = classifyLastSignal(
     trades,
     markers,
@@ -66,6 +57,7 @@ export function scanMaCrossover(bars) {
     asOfDate,
     optFast: fast,
     optSlow: slow,
+    optSignal: signal,
     optUsedDefault: usedDefault,
     runningTotal: runningTotalWithMtm(trades, markPrice, topWindowStart) ?? 0,
     runningTotalPct: runningTotalPctWithMtm(

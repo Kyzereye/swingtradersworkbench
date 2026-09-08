@@ -15,6 +15,14 @@ import {
   loadMaCrossoverYesterdaySignals,
   loadMaCrossoverPairForSymbol,
   loadMaCrossoverDowStocks,
+  loadTripleMaDowStocks,
+  loadTripleMaPairForSymbol,
+  loadTripleMaYesterdaySignals,
+  loadTripleMaTopPerformers,
+  loadMacdPairForSymbol,
+  loadMacdYesterdaySignals,
+  loadMacdTopPerformers,
+  loadMacdDowStocks,
   parseTopPerformerQuery,
   searchSymbols,
 } from "./scanData.js";
@@ -166,6 +174,124 @@ app.get("/api/systems/ma-crossover/dow", async (_req, res) => {
     console.error(err);
     res.status(500).json({
       error: err.message || "MA crossover Dow stocks query failed",
+    });
+  }
+});
+
+app.get("/api/systems/triple-ma/dow", async (_req, res) => {
+  try {
+    const result = await loadTripleMaDowStocks();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Triple MA Dow stocks query failed",
+    });
+  }
+});
+
+app.get("/api/systems/triple-ma/yesterday-signals", async (_req, res) => {
+  try {
+    const result = await loadTripleMaYesterdaySignals();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Triple MA yesterday signals query failed",
+    });
+  }
+});
+
+app.get("/api/systems/triple-ma/pair", async (req, res) => {
+  const symbol = normalizeSymbol(
+    typeof req.query.symbol === "string" ? req.query.symbol : ""
+  );
+  if (!symbol) {
+    res.status(400).json({ error: "Query param symbol is required" });
+    return;
+  }
+  try {
+    const pair = await loadTripleMaPairForSymbol(symbol);
+    res.json({ symbol, pair });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Triple MA pair query failed",
+    });
+  }
+});
+
+app.get("/api/systems/triple-ma/top-performers", async (req, res) => {
+  const topN = Math.min(
+    100,
+    Math.max(1, Number.parseInt(String(req.query.top ?? "50"), 10) || 50)
+  );
+  try {
+    const result = await loadTripleMaTopPerformers(topN);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Triple MA top performers query failed",
+    });
+  }
+});
+
+app.get("/api/systems/macd/pair", async (req, res) => {
+  const symbol = normalizeSymbol(
+    typeof req.query.symbol === "string" ? req.query.symbol : ""
+  );
+  if (!symbol) {
+    res.status(400).json({ error: "Query param symbol is required" });
+    return;
+  }
+  try {
+    const pair = await loadMacdPairForSymbol(symbol);
+    res.json({ symbol, pair });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "MACD pair query failed",
+    });
+  }
+});
+
+app.get("/api/systems/macd/yesterday-signals", async (_req, res) => {
+  try {
+    const result = await loadMacdYesterdaySignals();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "MACD yesterday signals query failed",
+    });
+  }
+});
+
+app.get("/api/systems/macd/top-performers", async (req, res) => {
+  const topN = Math.min(
+    100,
+    Math.max(1, Number.parseInt(String(req.query.top ?? "50"), 10) || 50)
+  );
+  try {
+    const result = await loadMacdTopPerformers(topN);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "MACD top performers query failed",
+    });
+  }
+});
+
+app.get("/api/systems/macd/dow", async (_req, res) => {
+  try {
+    const result = await loadMacdDowStocks();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "MACD Dow stocks query failed",
     });
   }
 });

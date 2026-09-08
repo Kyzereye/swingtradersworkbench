@@ -5,7 +5,11 @@ import {
   createChart,
   createSeriesMarkers,
 } from "lightweight-charts";
-import { MA_FAST_COLOR, MA_SLOW_COLOR } from "./chartColors.js";
+import {
+  MA_FAST_COLOR,
+  MA_MEDIUM_COLOR,
+  MA_SLOW_COLOR,
+} from "./chartColors.js";
 import { computeMaSeries } from "./ma.js";
 
 const CHART_HEIGHT = 420;
@@ -14,15 +18,18 @@ export default function CandlestickChart({
   data,
   markers = [],
   fastPeriod = 21,
+  mediumPeriod = null,
   slowPeriod = 50,
   maType = "ema",
 }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const candleRef = useRef(null);
-  const ema21Ref = useRef(null);
-  const ema50Ref = useRef(null);
+  const fastRef = useRef(null);
+  const mediumRef = useRef(null);
+  const slowRef = useRef(null);
   const markersRef = useRef(null);
+  const showMedium = mediumPeriod != null;
 
   useEffect(() => {
     const el = containerRef.current;
@@ -40,9 +47,7 @@ export default function CandlestickChart({
         horzLines: { color: "#2d3a4a" },
       },
       rightPriceScale: { borderColor: "#2d3a4a" },
-      timeScale: { borderColor: "#2d3a4a",
-        rightOffset: 20,
-       },
+      timeScale: { borderColor: "#2d3a4a", rightOffset: 20 },
     });
 
     const candles = chart.addSeries(CandlestickSeries, {
@@ -53,14 +58,24 @@ export default function CandlestickChart({
       wickDownColor: "#ef5350",
     });
 
-    const ema21 = chart.addSeries(LineSeries, {
+    const fastLine = chart.addSeries(LineSeries, {
       color: MA_FAST_COLOR,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
     });
 
-    const ema50 = chart.addSeries(LineSeries, {
+    let mediumLine = null;
+    if (showMedium) {
+      mediumLine = chart.addSeries(LineSeries, {
+        color: MA_MEDIUM_COLOR,
+        lineWidth: 2,
+        priceLineVisible: false,
+        lastValueVisible: false,
+      });
+    }
+
+    const slowLine = chart.addSeries(LineSeries, {
       color: MA_SLOW_COLOR,
       lineWidth: 2,
       priceLineVisible: false,
@@ -71,8 +86,9 @@ export default function CandlestickChart({
 
     chartRef.current = chart;
     candleRef.current = candles;
-    ema21Ref.current = ema21;
-    ema50Ref.current = ema50;
+    fastRef.current = fastLine;
+    mediumRef.current = mediumLine;
+    slowRef.current = slowLine;
     markersRef.current = seriesMarkers;
 
     const ro = new ResizeObserver(() => {
@@ -85,19 +101,21 @@ export default function CandlestickChart({
       chart.remove();
       chartRef.current = null;
       candleRef.current = null;
-      ema21Ref.current = null;
-      ema50Ref.current = null;
+      fastRef.current = null;
+      mediumRef.current = null;
+      slowRef.current = null;
       markersRef.current = null;
     };
-  }, []);
+  }, [showMedium]);
 
   useEffect(() => {
     const candles = candleRef.current;
-    const ema21 = ema21Ref.current;
-    const ema50 = ema50Ref.current;
+    const fastLine = fastRef.current;
+    const mediumLine = mediumRef.current;
+    const slowLine = slowRef.current;
     const seriesMarkers = markersRef.current;
     const chart = chartRef.current;
-    if (!candles || !ema21 || !ema50 || !chart || !data?.length) return;
+    if (!candles || !fastLine || !slowLine || !chart || !data?.length) return;
 
     candles.setData(
       data.map((bar) => ({
@@ -108,11 +126,14 @@ export default function CandlestickChart({
         close: bar.close,
       }))
     );
-    ema21.setData(computeMaSeries(data, fastPeriod, maType));
-    ema50.setData(computeMaSeries(data, slowPeriod, maType));
+    fastLine.setData(computeMaSeries(data, fastPeriod, maType));
+    if (mediumLine && mediumPeriod != null) {
+      mediumLine.setData(computeMaSeries(data, mediumPeriod, maType));
+    }
+    slowLine.setData(computeMaSeries(data, slowPeriod, maType));
     seriesMarkers?.setMarkers(markers);
     chart.timeScale().fitContent();
-  }, [data, markers, fastPeriod, slowPeriod, maType]);
+  }, [data, markers, fastPeriod, mediumPeriod, slowPeriod, maType]);
 
   return <div ref={containerRef} className="chart-wrap" />;
 }

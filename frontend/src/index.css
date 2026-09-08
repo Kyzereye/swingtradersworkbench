@@ -284,6 +284,10 @@ button:disabled {
   height: 420px;
 }
 
+.chart-wrap.macd-chart {
+  height: 460px;
+}
+
 .chart-wrap.running-pnl-chart {
   height: 220px;
 }
@@ -319,7 +323,7 @@ button:disabled {
 }
 
 .expand-panel {
-  margin-top: 0.75rem;
+  margin-top: 1.25rem;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -393,6 +397,19 @@ button:disabled {
 
 .ma-problems-closing {
   padding-top: 0.35rem;
+  border-top: 1px solid var(--border);
+}
+
+.ma-pros-cons-group {
+  margin: 0.35rem 0 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.ma-pros-cons-group-bad {
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
   border-top: 1px solid var(--border);
 }
 
@@ -844,8 +861,13 @@ button:disabled {
   cursor: pointer;
 }
 
-.systems-card:hover {
+.systems-card:hover:not(:disabled) {
   border-color: #6b7c8f;
+}
+
+.systems-card:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .systems-card:focus-visible {
@@ -875,6 +897,37 @@ button:disabled {
   margin: 0 0 0.75rem;
   font-size: 1.25rem;
   font-weight: 700;
+}
+
+.systems-dash-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+}
+
+.systems-dash-title-row .systems-dash-title {
+  margin: 0;
+}
+
+.systems-about-btn {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.systems-about-btn:hover {
+  color: var(--text);
+  border-color: var(--muted);
 }
 
 .systems-landing .dashboard-tab-title {

@@ -1,10 +1,12 @@
 import {
-  optimizeMaCrossover,
-  runningTotalWithMtm,
+  optimizeTripleMa,
   scoreWindowStart,
-} from "./optimizeMaCrossover.js";
-import { runningTotalPctWithMtm } from "./util/tradePnl.js";
-import { simulateMaCrossover } from "./maCrossoverSignals.js";
+} from "./optimizeTripleMa.js";
+import {
+  runningTotalWithMtm,
+  runningTotalPctWithMtm,
+} from "./util/tradePnl.js";
+import { simulateTripleMa } from "./tripleMaSignals.js";
 
 function tradeCountInWindow(trades, windowStart) {
   let n = 0;
@@ -18,10 +20,6 @@ function tradeCountInWindow(trades, windowStart) {
   return n;
 }
 
-/**
- * Classify relative to the symbol's last bar (last trading session).
- * entry / exit — cross marker on that bar; open — in trade from earlier; none.
- */
 function classifyLastSignal(trades, markers, lastBarDate) {
   const onLast = markers.filter((m) => m.time === lastBarDate);
   if (onLast.some((m) => m.text === "Close")) {
@@ -30,32 +28,34 @@ function classifyLastSignal(trades, markers, lastBarDate) {
   if (onLast.some((m) => m.text === "Open")) {
     return { lastSignal: "entry", signalDate: lastBarDate };
   }
-
   const openTrade = trades.find((t) => t.open);
   if (openTrade) {
     return { lastSignal: "open", signalDate: openTrade.entryDate };
   }
-
   return { lastSignal: "none", signalDate: null };
 }
 
 /**
- * Per-symbol optimized SMA crossover → system_ma_crossover_scan.
- * Pair chosen by full-history 1-share $ P/L.
- * Stored running totals / trade_count are last ~2y only (top performers).
+ * Optimized triple MA → system_triple_ma_scan.
+ * Periods from full-history $ P/L; stored totals last ~2y.
  */
-export function scanMaCrossover(bars) {
+export function scanTripleMa(bars) {
   if (!bars?.length) return null;
 
   const lastBar = bars[bars.length - 1];
   const asOfDate = lastBar.date;
   const markPrice = lastBar.close;
   const topWindowStart = scoreWindowStart(bars);
-  const { best, usedDefault } = optimizeMaCrossover(bars);
-  const fast = best.fast;
-  const slow = best.slow;
+  const { best, usedDefault } = optimizeTripleMa(bars);
+  const { fast, medium, slow } = best;
 
-  const { trades, markers } = simulateMaCrossover(bars, fast, slow, "sma");
+  const { trades, markers } = simulateTripleMa(
+    bars,
+    fast,
+    medium,
+    slow,
+    "sma"
+  );
   const { lastSignal, signalDate } = classifyLastSignal(
     trades,
     markers,
@@ -65,6 +65,7 @@ export function scanMaCrossover(bars) {
   return {
     asOfDate,
     optFast: fast,
+    optMedium: medium,
     optSlow: slow,
     optUsedDefault: usedDefault,
     runningTotal: runningTotalWithMtm(trades, markPrice, topWindowStart) ?? 0,

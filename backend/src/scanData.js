@@ -142,6 +142,62 @@ export async function loadMaCrossoverPairForSymbol(symbol) {
   return { fast, slow };
 }
 
+/** Latest Triple MA periods from system_triple_ma_scan, or null. */
+export async function loadTripleMaPairForSymbol(symbol) {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT scan.opt_fast, scan.opt_medium, scan.opt_slow
+    FROM system_triple_ma_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    WHERE s.symbol = ?
+    ORDER BY scan.as_of_date DESC
+    LIMIT 1
+    `,
+    [String(symbol).trim().toUpperCase()]
+  );
+  if (!rows.length) return null;
+  const fast = Number(rows[0].opt_fast);
+  const medium = Number(rows[0].opt_medium);
+  const slow = Number(rows[0].opt_slow);
+  if (
+    !Number.isFinite(fast) ||
+    !Number.isFinite(medium) ||
+    !Number.isFinite(slow)
+  ) {
+    return null;
+  }
+  return { fast, medium, slow };
+}
+
+/** Latest MACD periods from system_macd_scan, or null. */
+export async function loadMacdPairForSymbol(symbol) {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT scan.opt_fast, scan.opt_slow, scan.opt_signal
+    FROM system_macd_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    WHERE s.symbol = ?
+    ORDER BY scan.as_of_date DESC
+    LIMIT 1
+    `,
+    [String(symbol).trim().toUpperCase()]
+  );
+  if (!rows.length) return null;
+  const fast = Number(rows[0].opt_fast);
+  const slow = Number(rows[0].opt_slow);
+  const signal = Number(rows[0].opt_signal);
+  if (
+    !Number.isFinite(fast) ||
+    !Number.isFinite(slow) ||
+    !Number.isFinite(signal)
+  ) {
+    return null;
+  }
+  return { fast, slow, signal };
+}
+
 export async function loadBarsForSymbol(symbol) {
   const startDate = historyStartDate(HISTORY_YEARS);
   const pool = getPool();
@@ -244,6 +300,99 @@ export async function upsertMaCrossoverScanRow(symbol, scan) {
       scan.asOfDate,
       scan.optFast,
       scan.optSlow,
+      scan.optUsedDefault ? 1 : 0,
+      scan.runningTotal,
+      scan.runningTotalPct,
+      scan.tradeCount,
+      scan.lastSignal,
+      scan.signalDate,
+      scan.signalClose,
+      scan.barCount,
+    ]
+  );
+}
+
+export async function upsertTripleMaScanRow(symbol, scan) {
+  const symbolId = await resolveSymbolId(symbol);
+  if (symbolId == null) {
+    throw new Error(`Unknown symbol: ${symbol}`);
+  }
+  const pool = getPool();
+  await pool.execute(
+    `
+    INSERT INTO system_triple_ma_scan (
+      symbol_id, as_of_date, opt_fast, opt_medium, opt_slow, opt_used_default,
+      running_total, running_total_pct, trade_count,
+      last_signal, signal_date, signal_close, bar_count
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      opt_fast = VALUES(opt_fast),
+      opt_medium = VALUES(opt_medium),
+      opt_slow = VALUES(opt_slow),
+      opt_used_default = VALUES(opt_used_default),
+      running_total = VALUES(running_total),
+      running_total_pct = VALUES(running_total_pct),
+      trade_count = VALUES(trade_count),
+      last_signal = VALUES(last_signal),
+      signal_date = VALUES(signal_date),
+      signal_close = VALUES(signal_close),
+      bar_count = VALUES(bar_count),
+      computed_at = CURRENT_TIMESTAMP
+    `,
+    [
+      symbolId,
+      scan.asOfDate,
+      scan.optFast,
+      scan.optMedium,
+      scan.optSlow,
+      scan.optUsedDefault ? 1 : 0,
+      scan.runningTotal,
+      scan.runningTotalPct,
+      scan.tradeCount,
+      scan.lastSignal,
+      scan.signalDate,
+      scan.signalClose,
+      scan.barCount,
+    ]
+  );
+}
+
+/**
+ * Upsert one MACD optimize/scan row (system_macd_scan).
+ */
+export async function upsertMacdScanRow(symbol, scan) {
+  const symbolId = await resolveSymbolId(symbol);
+  if (symbolId == null) {
+    throw new Error(`Unknown symbol: ${symbol}`);
+  }
+  const pool = getPool();
+  await pool.execute(
+    `
+    INSERT INTO system_macd_scan (
+      symbol_id, as_of_date, opt_fast, opt_slow, opt_signal, opt_used_default,
+      running_total, running_total_pct, trade_count,
+      last_signal, signal_date, signal_close, bar_count
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      opt_fast = VALUES(opt_fast),
+      opt_slow = VALUES(opt_slow),
+      opt_signal = VALUES(opt_signal),
+      opt_used_default = VALUES(opt_used_default),
+      running_total = VALUES(running_total),
+      running_total_pct = VALUES(running_total_pct),
+      trade_count = VALUES(trade_count),
+      last_signal = VALUES(last_signal),
+      signal_date = VALUES(signal_date),
+      signal_close = VALUES(signal_close),
+      bar_count = VALUES(bar_count),
+      computed_at = CURRENT_TIMESTAMP
+    `,
+    [
+      symbolId,
+      scan.asOfDate,
+      scan.optFast,
+      scan.optSlow,
+      scan.optSignal,
       scan.optUsedDefault ? 1 : 0,
       scan.runningTotal,
       scan.runningTotalPct,
@@ -377,6 +526,320 @@ export async function loadMaCrossoverDowStocks() {
   };
 }
 
+const TRIPLE_MA_DEFAULT = { fast: 10, medium: 20, slow: 50 };
+
+/**
+ * Entry/exit signals on each symbol's last trading session (Triple MA).
+ * Session date is that symbol's latest bar / scan as_of_date.
+ */
+export async function loadTripleMaYesterdaySignals() {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      s.asset_type,
+      scan.last_signal,
+      scan.signal_date,
+      scan.signal_close,
+      scan.opt_fast,
+      scan.opt_medium,
+      scan.opt_slow,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_triple_ma_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_triple_ma_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE scan.last_signal IN ('entry', 'exit')
+    ORDER BY scan.signal_date DESC, s.symbol ASC
+    `
+  );
+
+  if (!rows.length) {
+    return { signals: [], computedAt: null };
+  }
+
+  return {
+    computedAt: rows[0].computed_at ?? null,
+    signals: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      assetType: row.asset_type ? String(row.asset_type) : null,
+      signal: String(row.last_signal),
+      signalDate: formatDateOnly(row.signal_date),
+      price:
+        row.signal_close != null ? Number(row.signal_close) : null,
+      optFast: Number(row.opt_fast),
+      optMedium: Number(row.opt_medium),
+      optSlow: Number(row.opt_slow),
+    })),
+  };
+}
+
+/**
+ * Entry/exit signals on each symbol's last trading session (MACD).
+ * Session date is that symbol's latest bar / scan as_of_date.
+ */
+export async function loadMacdYesterdaySignals() {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      s.asset_type,
+      scan.last_signal,
+      scan.signal_date,
+      scan.signal_close,
+      scan.opt_fast,
+      scan.opt_slow,
+      scan.opt_signal,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_macd_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_macd_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE scan.last_signal IN ('entry', 'exit')
+    ORDER BY scan.signal_date DESC, s.symbol ASC
+    `
+  );
+
+  if (!rows.length) {
+    return { signals: [], computedAt: null };
+  }
+
+  return {
+    computedAt: rows[0].computed_at ?? null,
+    signals: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      assetType: row.asset_type ? String(row.asset_type) : null,
+      signal: String(row.last_signal),
+      signalDate: formatDateOnly(row.signal_date),
+      price:
+        row.signal_close != null ? Number(row.signal_close) : null,
+      optFast: Number(row.opt_fast),
+      optSlow: Number(row.opt_slow),
+      optSignal: Number(row.opt_signal),
+    })),
+  };
+}
+
+/**
+ * Dow 30: latest Triple MA scan row each (~2y running P/L).
+ */
+export async function loadTripleMaDowStocks() {
+  const pool = getPool();
+  const placeholders = DOW30_SYMBOLS.map(() => "?").join(",");
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_fast,
+      scan.opt_medium,
+      scan.opt_slow,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.computed_at
+    FROM system_triple_ma_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_triple_ma_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.symbol IN (${placeholders})
+    `,
+    DOW30_SYMBOLS
+  );
+
+  const bySymbol = new Map();
+  for (const row of rows) {
+    bySymbol.set(String(row.symbol).toUpperCase(), {
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optFast: Number(row.opt_fast),
+      optMedium: Number(row.opt_medium),
+      optSlow: Number(row.opt_slow),
+      runningTotal:
+        row.running_total != null ? Number(row.running_total) : null,
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+    });
+  }
+
+  const { fast, medium, slow } = TRIPLE_MA_DEFAULT;
+  const stocks = DOW30_SYMBOLS.map(
+    (symbol) =>
+      bySymbol.get(symbol) ?? {
+        symbol,
+        companyName: null,
+        optFast: fast,
+        optMedium: medium,
+        optSlow: slow,
+        runningTotal: null,
+        runningTotalPct: null,
+      }
+  );
+
+  return {
+    computedAt: rows[0]?.computed_at ?? null,
+    stocks,
+  };
+}
+
+const MACD_DEFAULT = { fast: 12, slow: 26, signal: 9 };
+
+/**
+ * Dow 30: latest MACD scan row each (~2y running P/L).
+ */
+export async function loadMacdDowStocks() {
+  const pool = getPool();
+  const placeholders = DOW30_SYMBOLS.map(() => "?").join(",");
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_fast,
+      scan.opt_slow,
+      scan.opt_signal,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.computed_at
+    FROM system_macd_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_macd_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.symbol IN (${placeholders})
+    `,
+    DOW30_SYMBOLS
+  );
+
+  const bySymbol = new Map();
+  for (const row of rows) {
+    bySymbol.set(String(row.symbol).toUpperCase(), {
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optFast: Number(row.opt_fast),
+      optSlow: Number(row.opt_slow),
+      optSignal: Number(row.opt_signal),
+      runningTotal:
+        row.running_total != null ? Number(row.running_total) : null,
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+    });
+  }
+
+  const { fast, slow, signal } = MACD_DEFAULT;
+  const stocks = DOW30_SYMBOLS.map(
+    (symbol) =>
+      bySymbol.get(symbol) ?? {
+        symbol,
+        companyName: null,
+        optFast: fast,
+        optSlow: slow,
+        optSignal: signal,
+        runningTotal: null,
+        runningTotalPct: null,
+      }
+  );
+
+  return {
+    computedAt: rows[0]?.computed_at ?? null,
+    stocks,
+  };
+}
+
+/**
+ * Top stock/ETF by latest Triple MA scan score (last ~2y 1-share P/L %).
+ * One row per symbol (its newest as_of_date).
+ */
+export async function loadTripleMaTopPerformers(topN = 50) {
+  const lim = Math.min(100, Math.max(1, Math.floor(topN) || 50));
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_fast,
+      scan.opt_medium,
+      scan.opt_slow,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.trade_count,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_triple_ma_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_triple_ma_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.asset_type IN ('stock', 'etf')
+      AND scan.trade_count >= ${MIN_TRADES_FOR_TOP}
+    ORDER BY scan.running_total_pct IS NULL ASC,
+             scan.running_total_pct DESC
+    LIMIT ${lim}
+    `
+  );
+
+  if (!rows.length) {
+    return { asOfDate: null, computedAt: null, top: [] };
+  }
+
+  return {
+    asOfDate: null,
+    computedAt: rows[0].computed_at ?? null,
+    top: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optFast: Number(row.opt_fast),
+      optMedium: Number(row.opt_medium),
+      optSlow: Number(row.opt_slow),
+      runningTotal: Number(row.running_total),
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+      tradeCount: Number(row.trade_count),
+    })),
+  };
+}
+
 /**
  * Top stock/ETF by latest scan score (last ~2y 1-share P/L %).
  * One row per symbol (its newest as_of_date); calendar day is not a filter.
@@ -427,6 +890,66 @@ export async function loadMaCrossoverTopPerformers(topN = 50) {
         : null,
       optFast: Number(row.opt_fast),
       optSlow: Number(row.opt_slow),
+      runningTotal: Number(row.running_total),
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+      tradeCount: Number(row.trade_count),
+    })),
+  };
+}
+
+/**
+ * Top stock/ETF by latest MACD scan score (last ~2y 1-share P/L %).
+ * One row per symbol (its newest as_of_date).
+ */
+export async function loadMacdTopPerformers(topN = 50) {
+  const lim = Math.min(100, Math.max(1, Math.floor(topN) || 50));
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_fast,
+      scan.opt_slow,
+      scan.opt_signal,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.trade_count,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_macd_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_macd_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.asset_type IN ('stock', 'etf')
+      AND scan.trade_count >= ${MIN_TRADES_FOR_TOP}
+    ORDER BY scan.running_total_pct IS NULL ASC,
+             scan.running_total_pct DESC
+    LIMIT ${lim}
+    `
+  );
+
+  if (!rows.length) {
+    return { asOfDate: null, computedAt: null, top: [] };
+  }
+
+  return {
+    asOfDate: null,
+    computedAt: rows[0].computed_at ?? null,
+    top: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optFast: Number(row.opt_fast),
+      optSlow: Number(row.opt_slow),
+      optSignal: Number(row.opt_signal),
       runningTotal: Number(row.running_total),
       runningTotalPct:
         row.running_total_pct != null ? Number(row.running_total_pct) : null,

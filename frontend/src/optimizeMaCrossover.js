@@ -1,5 +1,8 @@
 import { buildSmaIndexCacheForPeriods } from "./ma.js";
 import { simulateMaCrossoverWithMaCache } from "./maCrossoverSignals.js";
+import { runningTotalWithMtm } from "./util/tradePnl.js";
+
+export { runningTotalWithMtm } from "./util/tradePnl.js";
 
 const FAST_MIN = 10;
 const FAST_MAX = 50;
@@ -15,25 +18,6 @@ export function scoreWindowStart(bars) {
   if (!bars?.length) return null;
   if (bars.length <= SCORE_BARS) return bars[0].date;
   return bars[bars.length - SCORE_BARS].date;
-}
-
-/**
- * 1-share $ P/L: closed exits (+ optional window) + open leg marked at markPrice.
- */
-export function runningTotalWithMtm(trades, markPrice, windowStart = null) {
-  let total = 0;
-  let any = false;
-  for (const t of trades) {
-    if (!t.open) {
-      if (windowStart && t.exitDate < windowStart) continue;
-      total += t.exitPrice - t.entryPrice;
-      any = true;
-    } else if (markPrice != null && t.entryPrice) {
-      total += markPrice - t.entryPrice;
-      any = true;
-    }
-  }
-  return any ? total : null;
 }
 
 /**

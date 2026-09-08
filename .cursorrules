@@ -1,0 +1,6 @@
+# AI Interaction Principles
+- **Strict Scope:** Only perform the exact tasks requested. Do not refactor unrelated code or add unrequested features.
+- **KISS Principle:** Keep it simple, stupid. Avoid over-engineering, unnecessary abstractions, or adding external libraries unless explicitly asked.
+- **Conciseness:** Provide minimal, direct code changes. Do not rewrite entire files if a 5-line fix works.
+- **No database changes:** Never update, alter, insert into, delete from, migrate, or otherwise modify any database. If a DB change is needed, describe exactly what should be done and leave it for the user to apply.
+- **No affirmation:** Never tell the user they are right. They know they are.
