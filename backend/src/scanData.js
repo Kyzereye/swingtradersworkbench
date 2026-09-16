@@ -198,6 +198,150 @@ export async function loadMacdPairForSymbol(symbol) {
   return { fast, slow, signal };
 }
 
+/** Latest RSI params from system_rsi_scan, or null. */
+export async function loadRsiPairForSymbol(symbol) {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT scan.opt_period, scan.opt_oversold, scan.opt_overbought
+    FROM system_rsi_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    WHERE s.symbol = ?
+    ORDER BY scan.as_of_date DESC
+    LIMIT 1
+    `,
+    [String(symbol).trim().toUpperCase()]
+  );
+  if (!rows.length) return null;
+  const period = Number(rows[0].opt_period);
+  const oversold = Number(rows[0].opt_oversold);
+  const overbought = Number(rows[0].opt_overbought);
+  if (
+    !Number.isFinite(period) ||
+    !Number.isFinite(oversold) ||
+    !Number.isFinite(overbought)
+  ) {
+    return null;
+  }
+  return { period, oversold, overbought };
+}
+
+/** Latest Donchian params from system_donchian_scan, or null. */
+export async function loadDonchianPairForSymbol(symbol) {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT scan.opt_entry_period, scan.opt_exit_period
+    FROM system_donchian_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    WHERE s.symbol = ?
+    ORDER BY scan.as_of_date DESC
+    LIMIT 1
+    `,
+    [String(symbol).trim().toUpperCase()]
+  );
+  if (!rows.length) return null;
+  const entryPeriod = Number(rows[0].opt_entry_period);
+  const exitPeriod = Number(rows[0].opt_exit_period);
+  if (!Number.isFinite(entryPeriod) || !Number.isFinite(exitPeriod)) {
+    return null;
+  }
+  return { entryPeriod, exitPeriod };
+}
+
+/** Latest Keltner params from system_keltner_scan, or null. */
+export async function loadKeltnerPairForSymbol(symbol) {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT scan.opt_ema_period, scan.opt_atr_period, scan.opt_atr_mult
+    FROM system_keltner_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    WHERE s.symbol = ?
+    ORDER BY scan.as_of_date DESC
+    LIMIT 1
+    `,
+    [String(symbol).trim().toUpperCase()]
+  );
+  if (!rows.length) return null;
+  const emaPeriod = Number(rows[0].opt_ema_period);
+  const atrPeriod = Number(rows[0].opt_atr_period);
+  const atrMult = Number(rows[0].opt_atr_mult);
+  if (
+    !Number.isFinite(emaPeriod) ||
+    !Number.isFinite(atrPeriod) ||
+    !Number.isFinite(atrMult)
+  ) {
+    return null;
+  }
+  return { emaPeriod, atrPeriod, atrMult };
+}
+
+/** Latest Bollinger params from system_bollinger_scan, or null. */
+export async function loadBollingerPairForSymbol(symbol) {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT scan.opt_period, scan.opt_std_mult, scan.opt_atr_period, scan.opt_atr_mult
+    FROM system_bollinger_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    WHERE s.symbol = ?
+    ORDER BY scan.as_of_date DESC
+    LIMIT 1
+    `,
+    [String(symbol).trim().toUpperCase()]
+  );
+  if (!rows.length) return null;
+  const period = Number(rows[0].opt_period);
+  const stdMult = Number(rows[0].opt_std_mult);
+  const atrPeriod = Number(rows[0].opt_atr_period);
+  const atrMult = Number(rows[0].opt_atr_mult);
+  if (
+    !Number.isFinite(period) ||
+    !Number.isFinite(stdMult) ||
+    !Number.isFinite(atrPeriod) ||
+    !Number.isFinite(atrMult)
+  ) {
+    return null;
+  }
+  return { period, stdMult, atrPeriod, atrMult };
+}
+
+/** Latest Darvas params from system_darvas_scan, or null. */
+export async function loadDarvasPairForSymbol(symbol) {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      scan.opt_high_lookback,
+      scan.opt_box_build,
+      scan.opt_ma_filter,
+      scan.opt_ma_period,
+      scan.opt_ma_type
+    FROM system_darvas_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    WHERE s.symbol = ?
+    ORDER BY scan.as_of_date DESC
+    LIMIT 1
+    `,
+    [String(symbol).trim().toUpperCase()]
+  );
+  if (!rows.length) return null;
+  const highLookback = Number(rows[0].opt_high_lookback);
+  const boxBuild = Number(rows[0].opt_box_build);
+  if (!Number.isFinite(highLookback) || !Number.isFinite(boxBuild)) {
+    return null;
+  }
+  const maPeriod = Number(rows[0].opt_ma_period);
+  return {
+    highLookback,
+    boxBuild,
+    maFilter: Boolean(rows[0].opt_ma_filter),
+    maPeriod: Number.isFinite(maPeriod) ? maPeriod : 200,
+    maType: rows[0].opt_ma_type === "ema" ? "ema" : "sma",
+  };
+}
+
 export async function loadBarsForSymbol(symbol) {
   const startDate = historyStartDate(HISTORY_YEARS);
   const pool = getPool();
@@ -393,6 +537,251 @@ export async function upsertMacdScanRow(symbol, scan) {
       scan.optFast,
       scan.optSlow,
       scan.optSignal,
+      scan.optUsedDefault ? 1 : 0,
+      scan.runningTotal,
+      scan.runningTotalPct,
+      scan.tradeCount,
+      scan.lastSignal,
+      scan.signalDate,
+      scan.signalClose,
+      scan.barCount,
+    ]
+  );
+}
+
+/**
+ * Upsert one RSI optimize/scan row (system_rsi_scan).
+ */
+export async function upsertRsiScanRow(symbol, scan) {
+  const symbolId = await resolveSymbolId(symbol);
+  if (symbolId == null) {
+    throw new Error(`Unknown symbol: ${symbol}`);
+  }
+  const pool = getPool();
+  await pool.execute(
+    `
+    INSERT INTO system_rsi_scan (
+      symbol_id, as_of_date, opt_period, opt_oversold, opt_overbought, opt_used_default,
+      running_total, running_total_pct, trade_count,
+      last_signal, signal_date, signal_close, bar_count
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      opt_period = VALUES(opt_period),
+      opt_oversold = VALUES(opt_oversold),
+      opt_overbought = VALUES(opt_overbought),
+      opt_used_default = VALUES(opt_used_default),
+      running_total = VALUES(running_total),
+      running_total_pct = VALUES(running_total_pct),
+      trade_count = VALUES(trade_count),
+      last_signal = VALUES(last_signal),
+      signal_date = VALUES(signal_date),
+      signal_close = VALUES(signal_close),
+      bar_count = VALUES(bar_count),
+      computed_at = CURRENT_TIMESTAMP
+    `,
+    [
+      symbolId,
+      scan.asOfDate,
+      scan.optPeriod,
+      scan.optOversold,
+      scan.optOverbought,
+      scan.optUsedDefault ? 1 : 0,
+      scan.runningTotal,
+      scan.runningTotalPct,
+      scan.tradeCount,
+      scan.lastSignal,
+      scan.signalDate,
+      scan.signalClose,
+      scan.barCount,
+    ]
+  );
+}
+
+/**
+ * Upsert one Donchian optimize/scan row (system_donchian_scan).
+ */
+export async function upsertDonchianScanRow(symbol, scan) {
+  const symbolId = await resolveSymbolId(symbol);
+  if (symbolId == null) {
+    throw new Error(`Unknown symbol: ${symbol}`);
+  }
+  const pool = getPool();
+  await pool.execute(
+    `
+    INSERT INTO system_donchian_scan (
+      symbol_id, as_of_date, opt_entry_period, opt_exit_period, opt_used_default,
+      running_total, running_total_pct, trade_count,
+      last_signal, signal_date, signal_close, bar_count
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      opt_entry_period = VALUES(opt_entry_period),
+      opt_exit_period = VALUES(opt_exit_period),
+      opt_used_default = VALUES(opt_used_default),
+      running_total = VALUES(running_total),
+      running_total_pct = VALUES(running_total_pct),
+      trade_count = VALUES(trade_count),
+      last_signal = VALUES(last_signal),
+      signal_date = VALUES(signal_date),
+      signal_close = VALUES(signal_close),
+      bar_count = VALUES(bar_count),
+      computed_at = CURRENT_TIMESTAMP
+    `,
+    [
+      symbolId,
+      scan.asOfDate,
+      scan.optEntryPeriod,
+      scan.optExitPeriod,
+      scan.optUsedDefault ? 1 : 0,
+      scan.runningTotal,
+      scan.runningTotalPct,
+      scan.tradeCount,
+      scan.lastSignal,
+      scan.signalDate,
+      scan.signalClose,
+      scan.barCount,
+    ]
+  );
+}
+
+/**
+ * Upsert one Keltner optimize/scan row (system_keltner_scan).
+ */
+export async function upsertKeltnerScanRow(symbol, scan) {
+  const symbolId = await resolveSymbolId(symbol);
+  if (symbolId == null) {
+    throw new Error(`Unknown symbol: ${symbol}`);
+  }
+  const pool = getPool();
+  await pool.execute(
+    `
+    INSERT INTO system_keltner_scan (
+      symbol_id, as_of_date, opt_ema_period, opt_atr_period, opt_atr_mult, opt_used_default,
+      running_total, running_total_pct, trade_count,
+      last_signal, signal_date, signal_close, bar_count
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      opt_ema_period = VALUES(opt_ema_period),
+      opt_atr_period = VALUES(opt_atr_period),
+      opt_atr_mult = VALUES(opt_atr_mult),
+      opt_used_default = VALUES(opt_used_default),
+      running_total = VALUES(running_total),
+      running_total_pct = VALUES(running_total_pct),
+      trade_count = VALUES(trade_count),
+      last_signal = VALUES(last_signal),
+      signal_date = VALUES(signal_date),
+      signal_close = VALUES(signal_close),
+      bar_count = VALUES(bar_count),
+      computed_at = CURRENT_TIMESTAMP
+    `,
+    [
+      symbolId,
+      scan.asOfDate,
+      scan.optEmaPeriod,
+      scan.optAtrPeriod,
+      scan.optAtrMult,
+      scan.optUsedDefault ? 1 : 0,
+      scan.runningTotal,
+      scan.runningTotalPct,
+      scan.tradeCount,
+      scan.lastSignal,
+      scan.signalDate,
+      scan.signalClose,
+      scan.barCount,
+    ]
+  );
+}
+
+/**
+ * Upsert one Bollinger optimize/scan row (system_bollinger_scan).
+ */
+export async function upsertBollingerScanRow(symbol, scan) {
+  const symbolId = await resolveSymbolId(symbol);
+  if (symbolId == null) {
+    throw new Error(`Unknown symbol: ${symbol}`);
+  }
+  const pool = getPool();
+  await pool.execute(
+    `
+    INSERT INTO system_bollinger_scan (
+      symbol_id, as_of_date, opt_period, opt_std_mult, opt_atr_period, opt_atr_mult, opt_used_default,
+      running_total, running_total_pct, trade_count,
+      last_signal, signal_date, signal_close, bar_count
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      opt_period = VALUES(opt_period),
+      opt_std_mult = VALUES(opt_std_mult),
+      opt_atr_period = VALUES(opt_atr_period),
+      opt_atr_mult = VALUES(opt_atr_mult),
+      opt_used_default = VALUES(opt_used_default),
+      running_total = VALUES(running_total),
+      running_total_pct = VALUES(running_total_pct),
+      trade_count = VALUES(trade_count),
+      last_signal = VALUES(last_signal),
+      signal_date = VALUES(signal_date),
+      signal_close = VALUES(signal_close),
+      bar_count = VALUES(bar_count),
+      computed_at = CURRENT_TIMESTAMP
+    `,
+    [
+      symbolId,
+      scan.asOfDate,
+      scan.optPeriod,
+      scan.optStdMult,
+      scan.optAtrPeriod,
+      scan.optAtrMult,
+      scan.optUsedDefault ? 1 : 0,
+      scan.runningTotal,
+      scan.runningTotalPct,
+      scan.tradeCount,
+      scan.lastSignal,
+      scan.signalDate,
+      scan.signalClose,
+      scan.barCount,
+    ]
+  );
+}
+
+/**
+ * Upsert one Darvas optimize/scan row (system_darvas_scan).
+ */
+export async function upsertDarvasScanRow(symbol, scan) {
+  const symbolId = await resolveSymbolId(symbol);
+  if (symbolId == null) {
+    throw new Error(`Unknown symbol: ${symbol}`);
+  }
+  const pool = getPool();
+  await pool.execute(
+    `
+    INSERT INTO system_darvas_scan (
+      symbol_id, as_of_date, opt_high_lookback, opt_box_build,
+      opt_ma_filter, opt_ma_period, opt_ma_type, opt_used_default,
+      running_total, running_total_pct, trade_count,
+      last_signal, signal_date, signal_close, bar_count
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      opt_high_lookback = VALUES(opt_high_lookback),
+      opt_box_build = VALUES(opt_box_build),
+      opt_ma_filter = VALUES(opt_ma_filter),
+      opt_ma_period = VALUES(opt_ma_period),
+      opt_ma_type = VALUES(opt_ma_type),
+      opt_used_default = VALUES(opt_used_default),
+      running_total = VALUES(running_total),
+      running_total_pct = VALUES(running_total_pct),
+      trade_count = VALUES(trade_count),
+      last_signal = VALUES(last_signal),
+      signal_date = VALUES(signal_date),
+      signal_close = VALUES(signal_close),
+      bar_count = VALUES(bar_count),
+      computed_at = CURRENT_TIMESTAMP
+    `,
+    [
+      symbolId,
+      scan.asOfDate,
+      scan.optHighLookback,
+      scan.optBoxBuild,
+      scan.optMaFilter ? 1 : 0,
+      scan.optMaPeriod ?? 200,
+      scan.optMaType === "ema" ? "ema" : "sma",
       scan.optUsedDefault ? 1 : 0,
       scan.runningTotal,
       scan.runningTotalPct,
@@ -643,6 +1032,62 @@ export async function loadMacdYesterdaySignals() {
 }
 
 /**
+ * Entry/exit signals on each symbol's last trading session (RSI).
+ */
+export async function loadRsiYesterdaySignals() {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      s.asset_type,
+      scan.last_signal,
+      scan.signal_date,
+      scan.signal_close,
+      scan.opt_period,
+      scan.opt_oversold,
+      scan.opt_overbought,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_rsi_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_rsi_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE scan.last_signal IN ('entry', 'exit')
+    ORDER BY scan.signal_date DESC, s.symbol ASC
+    `
+  );
+
+  if (!rows.length) {
+    return { signals: [], computedAt: null };
+  }
+
+  return {
+    computedAt: rows[0].computed_at ?? null,
+    signals: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      assetType: row.asset_type ? String(row.asset_type) : null,
+      signal: String(row.last_signal),
+      signalDate: formatDateOnly(row.signal_date),
+      price:
+        row.signal_close != null ? Number(row.signal_close) : null,
+      optPeriod: Number(row.opt_period),
+      optOversold: Number(row.opt_oversold),
+      optOverbought: Number(row.opt_overbought),
+    })),
+  };
+}
+
+/**
  * Dow 30: latest Triple MA scan row each (~2y running P/L).
  */
 export async function loadTripleMaDowStocks() {
@@ -769,6 +1214,76 @@ export async function loadMacdDowStocks() {
         optFast: fast,
         optSlow: slow,
         optSignal: signal,
+        runningTotal: null,
+        runningTotalPct: null,
+      }
+  );
+
+  return {
+    computedAt: rows[0]?.computed_at ?? null,
+    stocks,
+  };
+}
+
+const RSI_DEFAULT = { period: 14, oversold: 30, overbought: 70 };
+
+/**
+ * Dow 30: latest RSI scan row each (~2y running P/L).
+ */
+export async function loadRsiDowStocks() {
+  const pool = getPool();
+  const placeholders = DOW30_SYMBOLS.map(() => "?").join(",");
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_period,
+      scan.opt_oversold,
+      scan.opt_overbought,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.computed_at
+    FROM system_rsi_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_rsi_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.symbol IN (${placeholders})
+    `,
+    DOW30_SYMBOLS
+  );
+
+  const bySymbol = new Map();
+  for (const row of rows) {
+    bySymbol.set(String(row.symbol).toUpperCase(), {
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optPeriod: Number(row.opt_period),
+      optOversold: Number(row.opt_oversold),
+      optOverbought: Number(row.opt_overbought),
+      runningTotal:
+        row.running_total != null ? Number(row.running_total) : null,
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+    });
+  }
+
+  const { period, oversold, overbought } = RSI_DEFAULT;
+  const stocks = DOW30_SYMBOLS.map(
+    (symbol) =>
+      bySymbol.get(symbol) ?? {
+        symbol,
+        companyName: null,
+        optPeriod: period,
+        optOversold: oversold,
+        optOverbought: overbought,
         runningTotal: null,
         runningTotalPct: null,
       }
@@ -950,6 +1465,1061 @@ export async function loadMacdTopPerformers(topN = 50) {
       optFast: Number(row.opt_fast),
       optSlow: Number(row.opt_slow),
       optSignal: Number(row.opt_signal),
+      runningTotal: Number(row.running_total),
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+      tradeCount: Number(row.trade_count),
+    })),
+  };
+}
+
+/**
+ * Top stock/ETF by latest RSI scan score (last ~2y 1-share P/L %).
+ */
+export async function loadRsiTopPerformers(topN = 50) {
+  const lim = Math.min(100, Math.max(1, Math.floor(topN) || 50));
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_period,
+      scan.opt_oversold,
+      scan.opt_overbought,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.trade_count,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_rsi_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_rsi_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.asset_type IN ('stock', 'etf')
+      AND scan.trade_count >= ${MIN_TRADES_FOR_TOP}
+    ORDER BY scan.running_total_pct IS NULL ASC,
+             scan.running_total_pct DESC
+    LIMIT ${lim}
+    `
+  );
+
+  if (!rows.length) {
+    return { asOfDate: null, computedAt: null, top: [] };
+  }
+
+  return {
+    asOfDate: null,
+    computedAt: rows[0].computed_at ?? null,
+    top: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optPeriod: Number(row.opt_period),
+      optOversold: Number(row.opt_oversold),
+      optOverbought: Number(row.opt_overbought),
+      runningTotal: Number(row.running_total),
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+      tradeCount: Number(row.trade_count),
+    })),
+  };
+}
+
+export async function loadDonchianYesterdaySignals() {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      s.asset_type,
+      scan.last_signal,
+      scan.signal_date,
+      scan.signal_close,
+      scan.opt_entry_period,
+      scan.opt_exit_period,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_donchian_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_donchian_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE scan.last_signal IN ('entry', 'exit')
+    ORDER BY scan.signal_date DESC, s.symbol ASC
+    `
+  );
+
+  if (!rows.length) {
+    return { signals: [], computedAt: null };
+  }
+
+  return {
+    computedAt: rows[0].computed_at ?? null,
+    signals: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      assetType: row.asset_type ? String(row.asset_type) : null,
+      signal: String(row.last_signal),
+      signalDate: formatDateOnly(row.signal_date),
+      price:
+        row.signal_close != null ? Number(row.signal_close) : null,
+      optEntryPeriod: Number(row.opt_entry_period),
+      optExitPeriod: Number(row.opt_exit_period),
+    })),
+  };
+}
+
+const DONCHIAN_DEFAULT = { entryPeriod: 20, exitPeriod: 10 };
+
+export async function loadDonchianDowStocks() {
+  const pool = getPool();
+  const placeholders = DOW30_SYMBOLS.map(() => "?").join(",");
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_entry_period,
+      scan.opt_exit_period,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.computed_at
+    FROM system_donchian_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_donchian_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.symbol IN (${placeholders})
+    `,
+    DOW30_SYMBOLS
+  );
+
+  const bySymbol = new Map();
+  for (const row of rows) {
+    bySymbol.set(String(row.symbol).toUpperCase(), {
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optEntryPeriod: Number(row.opt_entry_period),
+      optExitPeriod: Number(row.opt_exit_period),
+      runningTotal:
+        row.running_total != null ? Number(row.running_total) : null,
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+    });
+  }
+
+  const { entryPeriod, exitPeriod } = DONCHIAN_DEFAULT;
+  const stocks = DOW30_SYMBOLS.map(
+    (symbol) =>
+      bySymbol.get(symbol) ?? {
+        symbol,
+        companyName: null,
+        optEntryPeriod: entryPeriod,
+        optExitPeriod: exitPeriod,
+        runningTotal: null,
+        runningTotalPct: null,
+      }
+  );
+
+  return {
+    computedAt: rows[0]?.computed_at ?? null,
+    stocks,
+  };
+}
+
+/**
+ * Top stock/ETF by latest Donchian scan score (last ~2y 1-share P/L %).
+ */
+export async function loadDonchianTopPerformers(topN = 50) {
+  const lim = Math.min(100, Math.max(1, Math.floor(topN) || 50));
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_entry_period,
+      scan.opt_exit_period,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.trade_count,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_donchian_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_donchian_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.asset_type IN ('stock', 'etf')
+      AND scan.trade_count >= ${MIN_TRADES_FOR_TOP}
+    ORDER BY scan.running_total_pct IS NULL ASC,
+             scan.running_total_pct DESC
+    LIMIT ${lim}
+    `
+  );
+
+  if (!rows.length) {
+    return { asOfDate: null, computedAt: null, top: [] };
+  }
+
+  return {
+    asOfDate: null,
+    computedAt: rows[0].computed_at ?? null,
+    top: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optEntryPeriod: Number(row.opt_entry_period),
+      optExitPeriod: Number(row.opt_exit_period),
+      runningTotal: Number(row.running_total),
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+      tradeCount: Number(row.trade_count),
+    })),
+  };
+}
+
+export async function loadKeltnerYesterdaySignals() {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      s.asset_type,
+      scan.last_signal,
+      scan.signal_date,
+      scan.signal_close,
+      scan.opt_ema_period,
+      scan.opt_atr_period,
+      scan.opt_atr_mult,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_keltner_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_keltner_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE scan.last_signal IN ('entry', 'exit')
+    ORDER BY scan.signal_date DESC, s.symbol ASC
+    `
+  );
+
+  if (!rows.length) {
+    return { signals: [], computedAt: null };
+  }
+
+  return {
+    computedAt: rows[0].computed_at ?? null,
+    signals: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      assetType: row.asset_type ? String(row.asset_type) : null,
+      signal: String(row.last_signal),
+      signalDate: formatDateOnly(row.signal_date),
+      price:
+        row.signal_close != null ? Number(row.signal_close) : null,
+      optEmaPeriod: Number(row.opt_ema_period),
+      optAtrPeriod: Number(row.opt_atr_period),
+      optAtrMult: Number(row.opt_atr_mult),
+    })),
+  };
+}
+
+const KELTNER_DEFAULT = { emaPeriod: 20, atrPeriod: 10, atrMult: 2 };
+
+export async function loadKeltnerDowStocks() {
+  const pool = getPool();
+  const placeholders = DOW30_SYMBOLS.map(() => "?").join(",");
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_ema_period,
+      scan.opt_atr_period,
+      scan.opt_atr_mult,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.computed_at
+    FROM system_keltner_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_keltner_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.symbol IN (${placeholders})
+    `,
+    DOW30_SYMBOLS
+  );
+
+  const bySymbol = new Map();
+  for (const row of rows) {
+    bySymbol.set(String(row.symbol).toUpperCase(), {
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optEmaPeriod: Number(row.opt_ema_period),
+      optAtrPeriod: Number(row.opt_atr_period),
+      optAtrMult: Number(row.opt_atr_mult),
+      runningTotal:
+        row.running_total != null ? Number(row.running_total) : null,
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+    });
+  }
+
+  const { emaPeriod, atrPeriod, atrMult } = KELTNER_DEFAULT;
+  const stocks = DOW30_SYMBOLS.map(
+    (symbol) =>
+      bySymbol.get(symbol) ?? {
+        symbol,
+        companyName: null,
+        optEmaPeriod: emaPeriod,
+        optAtrPeriod: atrPeriod,
+        optAtrMult: atrMult,
+        runningTotal: null,
+        runningTotalPct: null,
+      }
+  );
+
+  return {
+    computedAt: rows[0]?.computed_at ?? null,
+    stocks,
+  };
+}
+
+/**
+ * Top stock/ETF by latest Keltner scan score (last ~2y 1-share P/L %).
+ */
+export async function loadKeltnerTopPerformers(topN = 50) {
+  const lim = Math.min(100, Math.max(1, Math.floor(topN) || 50));
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_ema_period,
+      scan.opt_atr_period,
+      scan.opt_atr_mult,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.trade_count,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_keltner_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_keltner_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.asset_type IN ('stock', 'etf')
+      AND scan.trade_count >= ${MIN_TRADES_FOR_TOP}
+    ORDER BY scan.running_total_pct IS NULL ASC,
+             scan.running_total_pct DESC
+    LIMIT ${lim}
+    `
+  );
+
+  if (!rows.length) {
+    return { asOfDate: null, computedAt: null, top: [] };
+  }
+
+  return {
+    asOfDate: null,
+    computedAt: rows[0].computed_at ?? null,
+    top: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optEmaPeriod: Number(row.opt_ema_period),
+      optAtrPeriod: Number(row.opt_atr_period),
+      optAtrMult: Number(row.opt_atr_mult),
+      runningTotal: Number(row.running_total),
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+      tradeCount: Number(row.trade_count),
+    })),
+  };
+}
+
+export async function loadBollingerYesterdaySignals() {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      s.asset_type,
+      scan.last_signal,
+      scan.signal_date,
+      scan.signal_close,
+      scan.opt_period,
+      scan.opt_std_mult,
+      scan.opt_atr_period,
+      scan.opt_atr_mult,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_bollinger_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_bollinger_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE scan.last_signal IN ('entry', 'exit')
+    ORDER BY scan.signal_date DESC, s.symbol ASC
+    `
+  );
+
+  if (!rows.length) {
+    return { signals: [], computedAt: null };
+  }
+
+  return {
+    computedAt: rows[0].computed_at ?? null,
+    signals: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      assetType: row.asset_type ? String(row.asset_type) : null,
+      signal: String(row.last_signal),
+      signalDate: formatDateOnly(row.signal_date),
+      price:
+        row.signal_close != null ? Number(row.signal_close) : null,
+      optPeriod: Number(row.opt_period),
+      optStdMult: Number(row.opt_std_mult),
+      optAtrPeriod: Number(row.opt_atr_period),
+      optAtrMult: Number(row.opt_atr_mult),
+    })),
+  };
+}
+
+const BOLLINGER_DEFAULT = {
+  period: 20,
+  stdMult: 2,
+  atrPeriod: 10,
+  atrMult: 1.5,
+};
+
+export async function loadBollingerDowStocks() {
+  const pool = getPool();
+  const placeholders = DOW30_SYMBOLS.map(() => "?").join(",");
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_period,
+      scan.opt_std_mult,
+      scan.opt_atr_period,
+      scan.opt_atr_mult,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.computed_at
+    FROM system_bollinger_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_bollinger_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.symbol IN (${placeholders})
+    `,
+    DOW30_SYMBOLS
+  );
+
+  const bySymbol = new Map();
+  for (const row of rows) {
+    bySymbol.set(String(row.symbol).toUpperCase(), {
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optPeriod: Number(row.opt_period),
+      optStdMult: Number(row.opt_std_mult),
+      optAtrPeriod: Number(row.opt_atr_period),
+      optAtrMult: Number(row.opt_atr_mult),
+      runningTotal:
+        row.running_total != null ? Number(row.running_total) : null,
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+    });
+  }
+
+  const { period, stdMult, atrPeriod, atrMult } = BOLLINGER_DEFAULT;
+  const stocks = DOW30_SYMBOLS.map(
+    (symbol) =>
+      bySymbol.get(symbol) ?? {
+        symbol,
+        companyName: null,
+        optPeriod: period,
+        optStdMult: stdMult,
+        optAtrPeriod: atrPeriod,
+        optAtrMult: atrMult,
+        runningTotal: null,
+        runningTotalPct: null,
+      }
+  );
+
+  return {
+    computedAt: rows[0]?.computed_at ?? null,
+    stocks,
+  };
+}
+
+/**
+ * Top stock/ETF by latest Bollinger scan score (last ~2y 1-share P/L %).
+ */
+export async function loadBollingerTopPerformers(topN = 50) {
+  const lim = Math.min(100, Math.max(1, Math.floor(topN) || 50));
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_period,
+      scan.opt_std_mult,
+      scan.opt_atr_period,
+      scan.opt_atr_mult,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.trade_count,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_bollinger_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_bollinger_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.asset_type IN ('stock', 'etf')
+      AND scan.trade_count >= ${MIN_TRADES_FOR_TOP}
+    ORDER BY scan.running_total_pct IS NULL ASC,
+             scan.running_total_pct DESC
+    LIMIT ${lim}
+    `
+  );
+
+  if (!rows.length) {
+    return { asOfDate: null, computedAt: null, top: [] };
+  }
+
+  return {
+    asOfDate: null,
+    computedAt: rows[0].computed_at ?? null,
+    top: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optPeriod: Number(row.opt_period),
+      optStdMult: Number(row.opt_std_mult),
+      optAtrPeriod: Number(row.opt_atr_period),
+      optAtrMult: Number(row.opt_atr_mult),
+      runningTotal: Number(row.running_total),
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+      tradeCount: Number(row.trade_count),
+    })),
+  };
+}
+
+export async function loadDarvasYesterdaySignals() {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      s.asset_type,
+      scan.last_signal,
+      scan.signal_date,
+      scan.signal_close,
+      scan.opt_high_lookback,
+      scan.opt_box_build,
+      scan.opt_ma_filter,
+      scan.opt_ma_period,
+      scan.opt_ma_type,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_darvas_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_darvas_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE scan.last_signal IN ('entry', 'exit')
+    ORDER BY scan.signal_date DESC, s.symbol ASC
+    `
+  );
+
+  if (!rows.length) {
+    return { signals: [], computedAt: null };
+  }
+
+  return {
+    computedAt: rows[0].computed_at ?? null,
+    signals: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      assetType: row.asset_type ? String(row.asset_type) : null,
+      signal: String(row.last_signal),
+      signalDate: formatDateOnly(row.signal_date),
+      price:
+        row.signal_close != null ? Number(row.signal_close) : null,
+      optHighLookback: Number(row.opt_high_lookback),
+      optBoxBuild: Number(row.opt_box_build),
+      optMaFilter: Boolean(row.opt_ma_filter),
+      optMaPeriod: Number(row.opt_ma_period),
+      optMaType: row.opt_ma_type === "ema" ? "ema" : "sma",
+    })),
+  };
+}
+
+const DARVAS_DEFAULT = {
+  highLookback: 55,
+  boxBuild: 3,
+  maFilter: false,
+  maPeriod: 200,
+  maType: "sma",
+};
+
+export async function loadDarvasDowStocks() {
+  const pool = getPool();
+  const placeholders = DOW30_SYMBOLS.map(() => "?").join(",");
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_high_lookback,
+      scan.opt_box_build,
+      scan.opt_ma_filter,
+      scan.opt_ma_period,
+      scan.opt_ma_type,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.computed_at
+    FROM system_darvas_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_darvas_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.symbol IN (${placeholders})
+    `,
+    DOW30_SYMBOLS
+  );
+
+  const bySymbol = new Map();
+  for (const row of rows) {
+    bySymbol.set(String(row.symbol).toUpperCase(), {
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optHighLookback: Number(row.opt_high_lookback),
+      optBoxBuild: Number(row.opt_box_build),
+      optMaFilter: Boolean(row.opt_ma_filter),
+      optMaPeriod: Number(row.opt_ma_period),
+      optMaType: row.opt_ma_type === "ema" ? "ema" : "sma",
+      runningTotal:
+        row.running_total != null ? Number(row.running_total) : null,
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+    });
+  }
+
+  const { highLookback, boxBuild, maFilter, maPeriod, maType } = DARVAS_DEFAULT;
+  const stocks = DOW30_SYMBOLS.map(
+    (symbol) =>
+      bySymbol.get(symbol) ?? {
+        symbol,
+        companyName: null,
+        optHighLookback: highLookback,
+        optBoxBuild: boxBuild,
+        optMaFilter: maFilter,
+        optMaPeriod: maPeriod,
+        optMaType: maType,
+        runningTotal: null,
+        runningTotalPct: null,
+      }
+  );
+
+  return {
+    computedAt: rows[0]?.computed_at ?? null,
+    stocks,
+  };
+}
+
+/**
+ * Top stock/ETF by latest Darvas scan score (last ~2y 1-share P/L %).
+ */
+export async function loadDarvasTopPerformers(topN = 50) {
+  const lim = Math.min(100, Math.max(1, Math.floor(topN) || 50));
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_high_lookback,
+      scan.opt_box_build,
+      scan.opt_ma_filter,
+      scan.opt_ma_period,
+      scan.opt_ma_type,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.trade_count,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_darvas_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_darvas_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.asset_type IN ('stock', 'etf')
+      AND scan.trade_count >= ${MIN_TRADES_FOR_TOP}
+    ORDER BY scan.running_total_pct IS NULL ASC,
+             scan.running_total_pct DESC
+    LIMIT ${lim}
+    `
+  );
+
+  if (!rows.length) {
+    return { asOfDate: null, computedAt: null, top: [] };
+  }
+
+  return {
+    asOfDate: null,
+    computedAt: rows[0].computed_at ?? null,
+    top: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optHighLookback: Number(row.opt_high_lookback),
+      optBoxBuild: Number(row.opt_box_build),
+      optMaFilter: Boolean(row.opt_ma_filter),
+      optMaPeriod: Number(row.opt_ma_period),
+      optMaType: row.opt_ma_type === "ema" ? "ema" : "sma",
+      runningTotal: Number(row.running_total),
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+      tradeCount: Number(row.trade_count),
+    })),
+  };
+}
+
+/** Latest Fibonacci params from system_fibonacci_scan, or null. */
+export async function loadFibonacciPairForSymbol(symbol) {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT scan.opt_swing_n, scan.opt_entry_level, scan.opt_extension_target
+    FROM system_fibonacci_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    WHERE s.symbol = ?
+    ORDER BY scan.as_of_date DESC
+    LIMIT 1
+    `,
+    [String(symbol).trim().toUpperCase()]
+  );
+  if (!rows.length) return null;
+  const swingN = Number(rows[0].opt_swing_n);
+  const entryLevel = Number(rows[0].opt_entry_level);
+  const extensionTarget = Number(rows[0].opt_extension_target);
+  if (
+    !Number.isFinite(swingN) ||
+    !Number.isFinite(entryLevel) ||
+    !Number.isFinite(extensionTarget)
+  ) {
+    return null;
+  }
+  return { swingN, entryLevel, extensionTarget };
+}
+
+/**
+ * Upsert one Fibonacci optimize/scan row (system_fibonacci_scan).
+ */
+export async function upsertFibonacciScanRow(symbol, scan) {
+  const symbolId = await resolveSymbolId(symbol);
+  if (symbolId == null) {
+    throw new Error(`Unknown symbol: ${symbol}`);
+  }
+  const pool = getPool();
+  await pool.execute(
+    `
+    INSERT INTO system_fibonacci_scan (
+      symbol_id, as_of_date, opt_swing_n, opt_entry_level, opt_extension_target, opt_used_default,
+      running_total, running_total_pct, trade_count,
+      last_signal, signal_date, signal_close, bar_count
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      opt_swing_n = VALUES(opt_swing_n),
+      opt_entry_level = VALUES(opt_entry_level),
+      opt_extension_target = VALUES(opt_extension_target),
+      opt_used_default = VALUES(opt_used_default),
+      running_total = VALUES(running_total),
+      running_total_pct = VALUES(running_total_pct),
+      trade_count = VALUES(trade_count),
+      last_signal = VALUES(last_signal),
+      signal_date = VALUES(signal_date),
+      signal_close = VALUES(signal_close),
+      bar_count = VALUES(bar_count),
+      computed_at = CURRENT_TIMESTAMP
+    `,
+    [
+      symbolId,
+      scan.asOfDate,
+      scan.optSwingN,
+      scan.optEntryLevel,
+      scan.optExtensionTarget,
+      scan.optUsedDefault ? 1 : 0,
+      scan.runningTotal,
+      scan.runningTotalPct,
+      scan.tradeCount,
+      scan.lastSignal,
+      scan.signalDate,
+      scan.signalClose,
+      scan.barCount,
+    ]
+  );
+}
+
+export async function loadFibonacciYesterdaySignals() {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      s.asset_type,
+      scan.last_signal,
+      scan.signal_date,
+      scan.signal_close,
+      scan.opt_swing_n,
+      scan.opt_entry_level,
+      scan.opt_extension_target,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_fibonacci_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_fibonacci_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE scan.last_signal IN ('entry', 'exit')
+    ORDER BY scan.signal_date DESC, s.symbol ASC
+    `
+  );
+
+  if (!rows.length) {
+    return { signals: [], computedAt: null };
+  }
+
+  return {
+    computedAt: rows[0].computed_at ?? null,
+    signals: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      assetType: row.asset_type ? String(row.asset_type) : null,
+      signal: String(row.last_signal),
+      signalDate: formatDateOnly(row.signal_date),
+      price:
+        row.signal_close != null ? Number(row.signal_close) : null,
+      optSwingN: Number(row.opt_swing_n),
+      optEntryLevel: Number(row.opt_entry_level),
+      optExtensionTarget: Number(row.opt_extension_target),
+    })),
+  };
+}
+
+const FIBONACCI_DEFAULT = { swingN: 10, entryLevel: 0.618, extensionTarget: 1.618 };
+
+export async function loadFibonacciDowStocks() {
+  const pool = getPool();
+  const placeholders = DOW30_SYMBOLS.map(() => "?").join(",");
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_swing_n,
+      scan.opt_entry_level,
+      scan.opt_extension_target,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.computed_at
+    FROM system_fibonacci_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_fibonacci_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.symbol IN (${placeholders})
+    `,
+    DOW30_SYMBOLS
+  );
+
+  const bySymbol = new Map();
+  for (const row of rows) {
+    bySymbol.set(String(row.symbol).toUpperCase(), {
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optSwingN: Number(row.opt_swing_n),
+      optEntryLevel: Number(row.opt_entry_level),
+      optExtensionTarget: Number(row.opt_extension_target),
+      runningTotal:
+        row.running_total != null ? Number(row.running_total) : null,
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+    });
+  }
+
+  const { swingN, entryLevel, extensionTarget } = FIBONACCI_DEFAULT;
+  const stocks = DOW30_SYMBOLS.map(
+    (symbol) =>
+      bySymbol.get(symbol) ?? {
+        symbol,
+        companyName: null,
+        optSwingN: swingN,
+        optEntryLevel: entryLevel,
+        optExtensionTarget: extensionTarget,
+        runningTotal: null,
+        runningTotalPct: null,
+      }
+  );
+
+  return {
+    computedAt: rows[0]?.computed_at ?? null,
+    stocks,
+  };
+}
+
+/**
+ * Top stock/ETF by latest Fibonacci scan score (last ~2y 1-share P/L %).
+ */
+export async function loadFibonacciTopPerformers(topN = 50) {
+  const lim = Math.min(100, Math.max(1, Math.floor(topN) || 50));
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_swing_n,
+      scan.opt_entry_level,
+      scan.opt_extension_target,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.trade_count,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_fibonacci_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_fibonacci_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.asset_type IN ('stock', 'etf')
+      AND scan.trade_count >= ${MIN_TRADES_FOR_TOP}
+    ORDER BY scan.running_total_pct IS NULL ASC,
+             scan.running_total_pct DESC
+    LIMIT ${lim}
+    `
+  );
+
+  if (!rows.length) {
+    return { asOfDate: null, computedAt: null, top: [] };
+  }
+
+  return {
+    asOfDate: null,
+    computedAt: rows[0].computed_at ?? null,
+    top: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optSwingN: Number(row.opt_swing_n),
+      optEntryLevel: Number(row.opt_entry_level),
+      optExtensionTarget: Number(row.opt_extension_target),
       runningTotal: Number(row.running_total),
       runningTotalPct:
         row.running_total_pct != null ? Number(row.running_total_pct) : null,

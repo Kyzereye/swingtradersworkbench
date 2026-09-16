@@ -57,7 +57,7 @@ export default function OpensClosesTable({ trades, asOfDate }) {
       <summary className="trades-opens-summary">
         <span>
           Opens &amp; Closes ({closedCount}
-          {stillOpen ? ", 1 still open" : ""})
+          {stillOpen ? ", 1 still active" : ""})
         </span>
         <span className="trades-opens-summary-note">
           The whole chart is used to calculate the running P/L and P/L%.

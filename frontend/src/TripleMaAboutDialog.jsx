@@ -58,7 +58,7 @@ export default function TripleMaAboutDialog({ open, onClose }) {
             <h3 className="ma-problems-heading">Long only when fully stacked</h3>
             <p className="ma-problems-text">
               Enter long only when the fast MA is above the medium, and the
-              medium is above the slow — a full bullish stack. No long trade
+              medium is above the slow — a full bullish stack. No long entry
               without that alignment.
             </p>
           </section>
@@ -66,7 +66,7 @@ export default function TripleMaAboutDialog({ open, onClose }) {
             <h3 className="ma-problems-heading">In this app</h3>
             <p className="ma-problems-text">
               The stack is checked on each daily close. When alignment turns
-              on, the trade opens at the next bar&apos;s open; when alignment
+              on, the entry fills at the next bar&apos;s open; when alignment
               breaks, it exits at the next open. Periods can be optimized per
               symbol; Load applies the scanned fast / medium / slow when
               available.

@@ -379,7 +379,7 @@ export default function UserDashboardTab({ onSelectSymbol, onGoRules }) {
         <aside className="user-dash-about" aria-label="About this site">
           <h2 className="user-dash-section-title">About JJK Trading Labs</h2>
           <p className="user-dash-about-lead">
-            This is a free-to-use daily-bar swing trading research tool. Signals are evaluated
+            This is a free-to-use daily-bar swing analysis research tool. Signals are evaluated
             at the end-of-day close — not on intraday ticks.  It is for information and education purposes only.
           </p>
           <p>
@@ -392,7 +392,7 @@ export default function UserDashboardTab({ onSelectSymbol, onGoRules }) {
           <p>
             Use the <strong>Signals</strong> tab for a scan of today's symbols, the{" "}
             <strong>Daily log</strong> for history by date, and click any symbol
-            to open its chart with trades and running P/L.
+            to open its chart with signals and running P/L.
           </p>
           <p>
             Entry and exit logic is documented on the rules page.

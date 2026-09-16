@@ -23,7 +23,7 @@ export const SYSTEM_SECTIONS = [
       {
         id: "darvas",
         name: "Darvas Box",
-        blurb: "Box from new highs; buy break of box top, stop at box bottom.",
+        blurb: "Box from new highs; buy break of top, trail stop up on later box floors.",
       },
       {
         id: "keltner",

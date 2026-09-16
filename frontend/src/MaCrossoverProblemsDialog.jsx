@@ -14,17 +14,17 @@ const PROBLEMS = [
   {
     title: "The Overfitting Trap",
     body:
-      'When you run backtests to "optimize" MA pairs—say, discovering that a 13-period and 39-period cross yielded massive returns over the last five years—you are usually just curve-fitting to past noise. The market is highly dynamic. The specific volatility and regime that made those parameters work perfectly will shift, and yesterday\'s optimized holy grail becomes tomorrow\'s losing system.',
+      'When you run backtests to "optimize" MA pairs—say, discovering that a 13-period and 39-period cross yielded massive returns over the last five years—you are usually just curve-fitting to past noise. The market is highly dynamic. The specific volatility and regime that made those parameters work perfectly will shift, and yesterday\'s optimized holy grail becomes tomorrow\'s failing system.',
   },
   {
     title: "Friction Costs",
     body:
-      "Particularly with shorter-term optimized MAs, the strategy generates frequent trading signals. The constant entering and exiting racks up slippage, bid-ask spread costs, and short-term capital gains taxes, which easily destroy a marginal statistical edge.",
+      "Particularly with shorter-term optimized MAs, the strategy generates frequent signals. The constant entering and exiting racks up slippage, bid-ask spread costs, and short-term capital gains taxes, which easily destroy a marginal statistical edge.",
   },
 ];
 
 const CLOSING =
-  "None of this means moving averages are completely useless. Successful quantitative and algorithmic traders often use them as a broad directional filter rather than a trigger. For instance, they might only execute a separate, highly calibrated mean-reversion strategy if the broader market is trading above its 200-day MA.";
+  "None of this means moving averages are completely useless. Successful quantitative and algorithmic practitioners often use them as a broad directional filter rather than a trigger. For instance, they might only execute a separate, highly calibrated mean-reversion strategy if the broader market is above its 200-day MA.";
 
 /**
  * Informational dialog: known limitations of MA crossover as a trading system.

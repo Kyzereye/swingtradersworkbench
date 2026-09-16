@@ -157,13 +157,16 @@ crontab -e
 
 ### Nightly pipeline (weekdays after market close)
 
-Ingest new bars, then run the symbol scan:
+Ingest new bars, then run every system scan. Continues on step failure. Log is
+start/end timing per script (minutes), errors only, then a final all-finished
+line (or the list of scripts that did not finish):
 
 ```cron
 0 18 * * 1-5 cd /path/to/DBMA-trading && /usr/bin/npm run pipeline:nightly >> /tmp/dbma-pipeline.log 2>&1
 ```
 
-`pipeline:nightly` runs: `get-daily-price-data` → `analyze-symbols` → `analyze-ma-crossover`.
+`pipeline:nightly` runs: `get-daily-price-data` → `analyze-symbols` → each `analyze-<system>`.
+Interactive `npm run analyze-*` / `get-daily-price-data` still print per-symbol progress.
 
 ### Separate price update and scan (optional)
 
@@ -246,7 +249,7 @@ Symbol list endpoints (append `?apikey=YOUR_KEY`):
 | `npm run get-daily-price-data` | FMP nightly EOD update |
 | `npm run analyze-symbols` | Nightly symbol scan → `symbol_daily_scan` |
 | `npm run analyze-ma-crossover` | MA crossover optimize → `system_ma_crossover_scan` |
-| `npm run pipeline:nightly` | Prices → `analyze-symbols` → `analyze-ma-crossover` |
+| `npm run pipeline:nightly` | Prices → `analyze-symbols` → every `analyze-<system>` (quiet timed log) |
 | `npm run get-symbols` | Refresh symbol list → `stock_symbols` |
 | `npm run sync-symbol-changes` | FMP renames/delistings → `stock_symbols` + `data/symbol-changes.log` |
 | `npm run optimize:ma -- AAPL` | CLI MA optimization for one symbol |

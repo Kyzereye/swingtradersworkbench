@@ -1,13 +1,13 @@
 import { useEffect } from "react";
 
 const INTRO =
-  "The triple moving average (MA) alignment system—typically requiring a short, medium, and long-term average to stack sequentially (e.g., 20 > 50 > 200)—is a classic trend-following strategy. It can keep you on the right side of a mature trend, but its reliance on lagging data also creates clear weaknesses for end-of-day swing trading.";
+  "The triple moving average (MA) alignment system—typically requiring a short, medium, and long-term average to stack sequentially (e.g., 20 > 50 > 200)—is a classic trend-following strategy. It can keep you on the right side of a mature trend, but its reliance on lagging data also creates clear weaknesses for end-of-day swing analysis.";
 
 const PROS = [
   {
     title: "Algorithmic Objectivity",
     body:
-      "The system relies on strict mathematical conditions rather than subjective chart interpretation. For an application scanning daily stock market data to generate end-of-day swing trading signals, the triple MA provides a clean, easily programmable boolean trigger—the averages are either perfectly stacked or they aren't.",
+      "The system relies on strict mathematical conditions rather than subjective chart interpretation. For an application scanning daily stock market data to generate end-of-day swing signals, the triple MA provides a clean, easily programmable boolean trigger—the averages are either perfectly stacked or they aren't.",
   },
   {
     title: "Multi-Timeframe Confirmation",
@@ -15,14 +15,14 @@ const PROS = [
       "A single moving average crossover often falls victim to sudden, short-lived price spikes. Requiring a short, medium, and long-term average to align ensures that the immediate momentum agrees with the broader underlying trend before capital is deployed.",
   },
   {
-    title: "Built-in Trade Management",
+    title: "Built-in exit management",
     body:
-      "The layered averages create natural, dynamic support levels. A swing trader can scale out of positions systematically—for example, taking partial profits when the short-term MA breaks down, and fully exiting only if the medium-term MA crosses the long-term line.",
+      "The layered averages create natural, dynamic support levels. An analyst can scale out of positions systematically—for example, taking partial profits when the short-term MA breaks down, and fully exiting only if the medium-term MA crosses the long-term line.",
   },
   {
     title: "Forced Patience",
     body:
-      "By demanding full alignment before an entry, the system naturally restricts trading frequency. It acts as a structural filter that keeps capital on the sidelines during messy, consolidating, or highly volatile market conditions where the majority of false breakouts occur.",
+      "By demanding full alignment before an entry, the system naturally restricts signal frequency. It acts as a structural filter that keeps capital on the sidelines during messy, consolidating, or highly volatile market conditions where the majority of false breakouts occur.",
   },
 ];
 
@@ -35,7 +35,7 @@ const CONS = [
   {
     title: "Whipsaws in Choppy Markets",
     body:
-      "MAs excel in directional markets but fail aggressively during consolidation. When a stock trades sideways in a tight range, the averages compress and cross each other repeatedly. A mechanical triple MA system will trigger multiple false buy and sell signals during these periods, resulting in a string of small losses.",
+      "MAs excel in directional markets but fail aggressively during consolidation. When a stock moves sideways in a tight range, the averages compress and cross each other repeatedly. A mechanical triple MA system will trigger multiple false buy and sell signals during these periods, resulting in a string of small declines.",
   },
   {
     title: "The Risk-Reward Squeeze",
@@ -45,7 +45,7 @@ const CONS = [
   {
     title: "The Optimization Illusion (Curve Fitting)",
     body:
-      "When building and backtesting a mechanical trading system, it is incredibly tempting to tweak the moving average lengths to make the historical buy/sell signals look perfect. However, heavily optimizing these parameters to fit past daily-bar data rarely translates to robust live-market performance, as market volatility and cycles constantly shift.",
+      "When building and backtesting a mechanical system, it is incredibly tempting to tweak the moving average lengths to make the historical buy/sell signals look perfect. However, heavily optimizing these parameters to fit past daily-bar data rarely translates to robust live-market performance, as market volatility and cycles constantly shift.",
   },
 ];
 

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 const INTRO =
-  "MACD (Moving Average Convergence Divergence) combines trend and momentum into one tool. In this app it trades signal-line crosses on daily bars—clear rules, but the same lag and chop that affect other MA-based systems.";
+  "MACD (Moving Average Convergence Divergence) combines trend and momentum into one tool. In this app it follows signal-line crosses on daily bars—clear rules, but the same lag and chop that affect other MA-based systems.";
 
 const PROS = [
   {
@@ -35,12 +35,12 @@ const CONS = [
   {
     title: "Prone to Whipsaws",
     body:
-      "In choppy or sideways markets, the MACD line frequently crosses the signal line back and forth, generating false signals and unprofitable trades.",
+      "In choppy or sideways markets, the MACD line frequently crosses the signal line back and forth, generating false signals and negative outcomes.",
   },
   {
     title: "Divergence Timing Risk",
     body:
-      "A divergence can persist for a long time while price continues in the original direction, leading traders to enter reversal trades too early.",
+      "A divergence can persist for a long time while price continues in the original direction, leading to reversal entries far too early.",
   },
   {
     title: "Requires Context",

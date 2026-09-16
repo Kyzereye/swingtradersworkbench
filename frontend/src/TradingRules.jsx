@@ -3,10 +3,10 @@ export default function TradingRules() {
     <div className="rules-page">
       <h1 className="rules-title">Open &amp; close rules</h1>
       <p className="rules-intro">
-        These rules are for <strong>swing trading on daily bars</strong>: each open
+        These rules are for <strong>swing analysis on daily bars</strong>: each open
         and close is evaluated at the <strong>end-of-day close</strong>, not on
-        intraday ticks. Orders are assumed to fill at the <strong>next trading
-        day&apos;s open</strong> after the signal bar. Holds are meant to last
+        intraday ticks. Orders are assumed to fill at the <strong>next
+        session&apos;s open</strong> after the signal bar. Holds are meant to last
         multiple days or longer, not minutes or hours.
       </p>
       <p className="rules-intro">
@@ -54,7 +54,7 @@ export default function TradingRules() {
         <h2>Still-open positions</h2>
         <p>
           If still in a position at the end of the loaded history, it is shown as
-          still open in the trades table with no close date until a future bar
+          still active in the opens &amp; closes table with no close date until a future bar
           triggers a close.
         </p>
       </section>
@@ -70,7 +70,7 @@ export default function TradingRules() {
         </p>
         <p>
           On the <strong>Chart</strong> tab, enter your own preferred fast and
-          slow periods in the sidebar. Chart signals, markers, and the trades
+          slow periods in the sidebar. Chart signals, markers, and the opens &amp; closes
           table use your settings, not the scan defaults.
         </p>
       </section>

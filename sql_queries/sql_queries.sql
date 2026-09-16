@@ -5,7 +5,9 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS symbol_daily_scan, user_trades, user_usage, user_preferences, 
 stock_performance_metrics, trading_signals, daily_stock_data, users, stock_symbols, 
-roles, system_ma_crossover_scan, system_triple_ma_scan, system_macd_scan;
+roles, system_ma_crossover_scan, system_triple_ma_scan, system_macd_scan, system_rsi_scan, 
+system_donchian_scan, system_keltner_scan, system_bollinger_scan, system_darvas_scan,
+system_fibonacci_scan;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -300,3 +302,156 @@ CREATE TABLE IF NOT EXISTS system_macd_scan (
     KEY idx_asof_pct (as_of_date, running_total_pct),
     KEY idx_asof_signal (as_of_date, last_signal)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Per-symbol RSI mean-reversion optimize results
+
+CREATE TABLE IF NOT EXISTS system_rsi_scan (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    symbol_id INT NOT NULL,
+    as_of_date DATE NOT NULL,
+    opt_period INT UNSIGNED NOT NULL,
+    opt_oversold INT UNSIGNED NOT NULL,
+    opt_overbought INT UNSIGNED NOT NULL,
+    opt_used_default TINYINT(1) NOT NULL DEFAULT 0,
+    running_total DECIMAL(12, 4) NOT NULL,
+    running_total_pct DECIMAL(14, 4) NULL,
+    trade_count INT UNSIGNED NOT NULL DEFAULT 0,
+    last_signal ENUM('entry', 'exit', 'open', 'none') NOT NULL DEFAULT 'none',
+    signal_date DATE NULL,
+    signal_close DECIMAL(12, 4) NULL,
+    bar_count INT UNSIGNED NOT NULL,
+    computed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (symbol_id) REFERENCES stock_symbols(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_symbol_asof (symbol_id, as_of_date),
+    KEY idx_asof_pct (as_of_date, running_total_pct),
+    KEY idx_asof_signal (as_of_date, last_signal)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Per-symbol Donchian (Turtle-style) breakout optimize results
+
+CREATE TABLE IF NOT EXISTS system_donchian_scan (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    symbol_id INT NOT NULL,
+    as_of_date DATE NOT NULL,
+    opt_entry_period INT UNSIGNED NOT NULL,
+    opt_exit_period INT UNSIGNED NOT NULL,
+    opt_used_default TINYINT(1) NOT NULL DEFAULT 0,
+    running_total DECIMAL(12, 4) NOT NULL,
+    running_total_pct DECIMAL(14, 4) NULL,
+    trade_count INT UNSIGNED NOT NULL DEFAULT 0,
+    last_signal ENUM('entry', 'exit', 'open', 'none') NOT NULL DEFAULT 'none',
+    signal_date DATE NULL,
+    signal_close DECIMAL(12, 4) NULL,
+    bar_count INT UNSIGNED NOT NULL,
+    computed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (symbol_id) REFERENCES stock_symbols(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_symbol_asof (symbol_id, as_of_date),
+    KEY idx_asof_pct (as_of_date, running_total_pct),
+    KEY idx_asof_signal (as_of_date, last_signal)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Per-symbol Keltner Channel trend optimize results
+
+CREATE TABLE IF NOT EXISTS system_keltner_scan (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    symbol_id INT NOT NULL,
+    as_of_date DATE NOT NULL,
+    opt_ema_period INT UNSIGNED NOT NULL,
+    opt_atr_period INT UNSIGNED NOT NULL,
+    opt_atr_mult DECIMAL(6, 2) NOT NULL,
+    opt_used_default TINYINT(1) NOT NULL DEFAULT 0,
+    running_total DECIMAL(12, 4) NOT NULL,
+    running_total_pct DECIMAL(14, 4) NULL,
+    trade_count INT UNSIGNED NOT NULL DEFAULT 0,
+    last_signal ENUM('entry', 'exit', 'open', 'none') NOT NULL DEFAULT 'none',
+    signal_date DATE NULL,
+    signal_close DECIMAL(12, 4) NULL,
+    bar_count INT UNSIGNED NOT NULL,
+    computed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (symbol_id) REFERENCES stock_symbols(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_symbol_asof (symbol_id, as_of_date),
+    KEY idx_asof_pct (as_of_date, running_total_pct),
+    KEY idx_asof_signal (as_of_date, last_signal)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Per-symbol Bollinger squeeze & reversion optimize results
+
+CREATE TABLE IF NOT EXISTS system_bollinger_scan (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    symbol_id INT NOT NULL,
+    as_of_date DATE NOT NULL,
+    opt_period INT UNSIGNED NOT NULL,
+    opt_std_mult DECIMAL(6, 2) NOT NULL,
+    opt_atr_period INT UNSIGNED NOT NULL,
+    opt_atr_mult DECIMAL(6, 2) NOT NULL,
+    opt_used_default TINYINT(1) NOT NULL DEFAULT 0,
+    running_total DECIMAL(12, 4) NOT NULL,
+    running_total_pct DECIMAL(14, 4) NULL,
+    trade_count INT UNSIGNED NOT NULL DEFAULT 0,
+    last_signal ENUM('entry', 'exit', 'open', 'none') NOT NULL DEFAULT 'none',
+    signal_date DATE NULL,
+    signal_close DECIMAL(12, 4) NULL,
+    bar_count INT UNSIGNED NOT NULL,
+    computed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (symbol_id) REFERENCES stock_symbols(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_symbol_asof (symbol_id, as_of_date),
+    KEY idx_asof_pct (as_of_date, running_total_pct),
+    KEY idx_asof_signal (as_of_date, last_signal)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Per-symbol Darvas box optimize results
+
+CREATE TABLE IF NOT EXISTS system_darvas_scan (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    symbol_id INT NOT NULL,
+    as_of_date DATE NOT NULL,
+    opt_high_lookback INT UNSIGNED NOT NULL,
+    opt_box_build INT UNSIGNED NOT NULL,
+    opt_ma_filter TINYINT(1) NOT NULL DEFAULT 0,
+    opt_ma_period INT UNSIGNED NOT NULL DEFAULT 200,
+    opt_ma_type ENUM('sma', 'ema') NOT NULL DEFAULT 'sma',
+    opt_used_default TINYINT(1) NOT NULL DEFAULT 0,
+    running_total DECIMAL(12, 4) NOT NULL,
+    running_total_pct DECIMAL(14, 4) NULL,
+    trade_count INT UNSIGNED NOT NULL DEFAULT 0,
+    last_signal ENUM('entry', 'exit', 'open', 'none') NOT NULL DEFAULT 'none',
+    signal_date DATE NULL,
+    signal_close DECIMAL(12, 4) NULL,
+    bar_count INT UNSIGNED NOT NULL,
+    computed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (symbol_id) REFERENCES stock_symbols(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_symbol_asof (symbol_id, as_of_date),
+    KEY idx_asof_pct (as_of_date, running_total_pct),
+    KEY idx_asof_signal (as_of_date, last_signal)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Per-symbol Fibonacci retracement/extension optimize results
+
+CREATE TABLE IF NOT EXISTS system_fibonacci_scan (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    symbol_id INT NOT NULL,
+    as_of_date DATE NOT NULL,
+    opt_swing_n INT UNSIGNED NOT NULL,
+    opt_entry_level DECIMAL(6, 4) NOT NULL,
+    opt_extension_target DECIMAL(6, 4) NOT NULL,
+    opt_used_default TINYINT(1) NOT NULL DEFAULT 0,
+    running_total DECIMAL(12, 4) NOT NULL,
+    running_total_pct DECIMAL(14, 4) NULL,
+    trade_count INT UNSIGNED NOT NULL DEFAULT 0,
+    last_signal ENUM('entry', 'exit', 'open', 'none') NOT NULL DEFAULT 'none',
+    signal_date DATE NULL,
+    signal_close DECIMAL(12, 4) NULL,
+    bar_count INT UNSIGNED NOT NULL,
+    computed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (symbol_id) REFERENCES stock_symbols(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_symbol_asof (symbol_id, as_of_date),
+    KEY idx_asof_pct (as_of_date, running_total_pct),
+    KEY idx_asof_signal (as_of_date, last_signal)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

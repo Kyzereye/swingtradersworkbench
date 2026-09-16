@@ -187,6 +187,17 @@ body {
   margin-bottom: 0.15rem;
 }
 
+.ma-controls-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.15rem;
+}
+
+.ma-controls-title-row .ma-controls-title {
+  margin-bottom: 0;
+}
+
 .ma-controls-field {
   display: flex;
   flex-direction: column;
@@ -207,6 +218,40 @@ body {
   border-radius: 4px;
   font-size: 0.85rem;
   width: 100%;
+}
+
+.ma-controls-field input:disabled,
+.ma-controls-field select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  color: var(--muted);
+}
+
+.ma-controls-check-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.ma-controls-check-row .ma-controls-check {
+  margin-top: 0;
+}
+
+.ma-controls-check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ma-controls-check input {
+  width: auto;
+  accent-color: var(--accent, #3b82f6);
 }
 
 .ma-controls-field input {
@@ -288,6 +333,59 @@ button:disabled {
   height: 460px;
 }
 
+.chart-wrap.rsi-chart {
+  height: 460px;
+}
+
+.chart-with-symbol {
+  position: relative;
+}
+
+.chart-wrap-inner {
+  width: 100%;
+  height: 100%;
+}
+
+.chart-symbol-label {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.65rem;
+  z-index: 2;
+  pointer-events: none;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.fib-leg-icons {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.fib-leg-icon {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(15, 20, 27, 0.9);
+  color: #fff;
+  font: italic 700 13px/16px Georgia, "Times New Roman", serif;
+  text-align: center;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35), 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.fib-leg-icon:hover {
+  transform: scale(1.25);
+}
+
 .chart-wrap.running-pnl-chart {
   height: 220px;
 }
@@ -351,6 +449,35 @@ button:disabled {
 
 .expand-panel[open] summary::before {
   content: "▾";
+}
+
+.sidebar-settings-expand {
+  margin-top: 0.75rem;
+}
+
+.sidebar-settings-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.sidebar-settings-summary .systems-about-btn {
+  margin-left: auto;
+}
+
+.sidebar-settings-expand:not([open]) .sidebar-settings-summary .systems-about-btn {
+  display: none;
+}
+
+.ma-controls-in-expand {
+  padding: 0 1rem 0.85rem;
+  border-top: none;
+  padding-top: 0;
+}
+
+.ma-controls.ma-controls-actions {
+  padding-top: 0.75rem;
+  border-top: none;
 }
 
 .trades-opens-summary {
@@ -473,6 +600,77 @@ button:disabled {
 
 .trades-table .trades-col-num {
   white-space: nowrap;
+}
+
+.fib-legs-table tbody tr {
+  cursor: pointer;
+}
+
+.fib-legs-table tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Twice the width of the other detail dialogs (36rem) so the leg has room. */
+.app-dialog.fib-leg-dialog {
+  width: min(100%, 72rem);
+}
+
+/* Outcome pill beside the dialog title; colors match the chart's leg icons. */
+.fib-leg-badge {
+  display: inline-block;
+  margin-left: 0.6rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  color: #fff;
+}
+
+.fib-leg-badge-none {
+  background: #8b9bab;
+}
+
+.fib-leg-badge-open {
+  background: #3b82f6;
+}
+
+.fib-leg-badge-win {
+  background: #6abf69;
+}
+
+.fib-leg-badge-loss {
+  background: #ef5350;
+}
+
+/* Under the chart: swing points + trade on the left, level lists on the right. */
+.fib-leg-body {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.fib-leg-main,
+.fib-leg-side {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+@media (max-width: 800px) {
+  .fib-leg-body {
+    flex-direction: column;
+  }
+}
+
+.fib-leg-mini-chart {
+  width: 100%;
+  height: 300px;
+  flex: 0 0 300px;
+  border: 1px solid #2d3a4a;
+  border-radius: 6px;
+  overflow: hidden;
 }
 
 .scanner-page-header {

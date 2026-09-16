@@ -6,6 +6,13 @@ const AVAILABLE_SYSTEM_IDS = new Set([
   "ma-crossover",
   "triple-ma",
   "macd",
+  "rsi",
+  "donchian",
+  "keltner",
+  "bollinger-squeeze",
+  "darvas",
+  "candlestick-reversal",
+  "fibonacci",
 ]);
 
 export default function SystemsTab() {

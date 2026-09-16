@@ -381,12 +381,12 @@ export default function App() {
             <dd>Close price minus open price.</dd>
             <dt>P/L%</dt>
             <dd>(close ÷ open − 1) × 100.</dd>
-            <dt>DiT - Days in Trade</dt>
-            <dd>Calendar days from open to close; open trades use the latest chart date.</dd>
+            <dt>DiT - Days in position</dt>
+            <dd>Calendar days from open to close; active positions use the latest chart date.</dd>
             <dt>Running P/L</dt>
-            <dd>Sum of P/L from closed trades up to that row.</dd>
+            <dd>Sum of P/L from closed signals up to that row.</dd>
             <dt>Running P/L %</dt>
-            <dd>Sum of each closed trade’s P/L % up to that row (1 share per trade; not compounded).</dd>
+            <dd>Sum of each closed signal’s P/L % up to that row (1 share per signal; not compounded).</dd>
           </dl>
         </div>
       </aside>

@@ -12,7 +12,13 @@
     "analyze-ma-crossover": "node scripts/analyze-ma-crossover.mjs",
     "analyze-triple-ma": "node scripts/analyze-triple-ma.mjs",
     "analyze-macd": "node scripts/analyze-macd.mjs",
-    "pipeline:nightly": "npm run get-daily-price-data; npm run analyze-symbols; npm run analyze-ma-crossover; npm run analyze-triple-ma; npm run analyze-macd"
+    "analyze-rsi": "node scripts/analyze-rsi.mjs",
+    "analyze-donchian": "node scripts/analyze-donchian.mjs",
+    "analyze-keltner": "node scripts/analyze-keltner.mjs",
+    "analyze-bollinger": "node scripts/analyze-bollinger.mjs",
+    "analyze-darvas": "node scripts/analyze-darvas.mjs",
+    "analyze-fibonacci": "node scripts/analyze-fibonacci.mjs",
+    "pipeline:nightly": "node scripts/pipeline-nightly.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

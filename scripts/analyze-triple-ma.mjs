@@ -14,6 +14,7 @@ import {
   loadBarsForSymbol,
   upsertTripleMaScanRow,
 } from "../backend/src/scanData.js";
+import { PIPELINE_QUIET } from "./is-pipeline-quiet.mjs";
 
 const DELAY_MS = Number(process.env.SCAN_DELAY_MS) || 0;
 
@@ -62,7 +63,9 @@ async function main() {
     symbols = symbols.slice(0, limit);
   }
 
-  console.log(`Triple MA optimize ${symbols.length} symbol(s)…\n`);
+  if (!PIPELINE_QUIET) {
+    console.log(`Triple MA optimize ${symbols.length} symbol(s)…\n`);
+  }
 
   let ok = 0;
   let skipped = 0;
@@ -74,17 +77,21 @@ async function main() {
       const r = await analyzeOne(sym);
       if (r.status === "ok") {
         ok++;
-        const pct =
-          r.runningTotalPct == null
-            ? "n/a"
-            : `${r.runningTotalPct >= 0 ? "+" : ""}${r.runningTotalPct.toFixed(1)}%`;
-        const rt = `${r.runningTotal >= 0 ? "+" : ""}${r.runningTotal.toFixed(2)}`;
-        console.log(
-          `${sym.padEnd(6)} ${r.optFast}/${r.optMedium}/${r.optSlow}  RT ${rt}  ${pct}  trades ${r.tradeCount}  ${r.lastSignal}`
-        );
+        if (!PIPELINE_QUIET) {
+          const pct =
+            r.runningTotalPct == null
+              ? "n/a"
+              : `${r.runningTotalPct >= 0 ? "+" : ""}${r.runningTotalPct.toFixed(1)}%`;
+          const rt = `${r.runningTotal >= 0 ? "+" : ""}${r.runningTotal.toFixed(2)}`;
+          console.log(
+            `${sym.padEnd(6)} ${r.optFast}/${r.optMedium}/${r.optSlow}  RT ${rt}  ${pct}  trades ${r.tradeCount}  ${r.lastSignal}`
+          );
+        }
       } else {
         skipped++;
-        console.log(`${sym.padEnd(6)} skipped (${r.reason})`);
+        if (!PIPELINE_QUIET) {
+          console.log(`${sym.padEnd(6)} skipped (${r.reason})`);
+        }
       }
     } catch (err) {
       failed++;
@@ -93,16 +100,18 @@ async function main() {
     await sleep(DELAY_MS);
   }
 
-  const sec = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(
-    `\nDone in ${sec}s — ok: ${ok}, skipped: ${skipped}, failed: ${failed}`
-  );
+  if (!PIPELINE_QUIET) {
+    const sec = ((Date.now() - t0) / 1000).toFixed(1);
+    console.log(
+      `\nDone in ${sec}s — ok: ${ok}, skipped: ${skipped}, failed: ${failed}`
+    );
+  }
   if (failed > 0) process.exitCode = 1;
 }
 
 main()
   .catch((err) => {
     console.error(err);
-    process.exitCode = 1;
+    process.exitCode = 2;
   })
   .finally(() => closePool());

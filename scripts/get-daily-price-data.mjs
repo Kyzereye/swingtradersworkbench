@@ -20,6 +20,7 @@ import {
   yearsAgoIso,
   nextDayIso,
 } from "./get-stock-data.mjs";
+import { PIPELINE_QUIET } from "./is-pipeline-quiet.mjs";
 import { PRICE_DATA_LOG_REL, PriceRunLog } from "./price-run-log.mjs";
 
 function parseDailyArgs(argv) {
@@ -53,7 +54,9 @@ async function main() {
   const symbols = await resolveSymbolList(process.argv);
   const runLog = new PriceRunLog("daily");
 
-  console.log(`Daily FMP EOD: ${symbols.length} symbols\n`);
+  if (!PIPELINE_QUIET) {
+    console.log(`Daily FMP EOD: ${symbols.length} symbols\n`);
+  }
 
   let ok = 0;
   let current = 0;
@@ -68,14 +71,20 @@ async function main() {
       totalBars += r.count || 0;
       if (r.status === "ok") {
         ok++;
-        console.log(`${sym.padEnd(10)} +${r.count} bar(s)`);
+        if (!PIPELINE_QUIET) {
+          console.log(`${sym.padEnd(10)} +${r.count} bar(s)`);
+        }
       } else if (r.status === "current") {
         current++;
-        console.log(`${sym.padEnd(10)} up to date`);
+        if (!PIPELINE_QUIET) {
+          console.log(`${sym.padEnd(10)} up to date`);
+        }
       } else {
         empty++;
         runLog.logEmpty(sym);
-        console.log(`${sym.padEnd(10)} no new data`);
+        if (!PIPELINE_QUIET) {
+          console.log(`${sym.padEnd(10)} no new data`);
+        }
       }
     } catch (err) {
       failed++;
@@ -89,18 +98,23 @@ async function main() {
 
   if (cleanup) {
     const deleted = await cleanupOldBars();
-    console.log(`\nCleanup: removed ${deleted} row(s) older than ${HISTORY_YEARS}y`);
+    if (!PIPELINE_QUIET) {
+      console.log(`\nCleanup: removed ${deleted} row(s) older than ${HISTORY_YEARS}y`);
+    }
   }
 
-  const sec = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(
-    `\nDone in ${sec}s — updated: ${ok}, up to date: ${current}, no data: ${empty}, failed: ${failed}, bars: ${totalBars}. Log: ${PRICE_DATA_LOG_REL}`
-  );
+  if (!PIPELINE_QUIET) {
+    const sec = ((Date.now() - t0) / 1000).toFixed(1);
+    console.log(
+      `\nDone in ${sec}s — updated: ${ok}, up to date: ${current}, no data: ${empty}, failed: ${failed}, bars: ${totalBars}. Log: ${PRICE_DATA_LOG_REL}`
+    );
+  }
+  if (failed > 0) process.exitCode = 1;
 }
 
 main()
   .catch((err) => {
     console.error(err.message || err);
-    process.exitCode = 1;
+    process.exitCode = 2;
   })
   .finally(() => closePool());

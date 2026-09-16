@@ -146,7 +146,7 @@ export default function TopPerformersDialog({
                         onSort={toggleSort}
                         className="scanner-col-num"
                       >
-                        Trades
+                        Signals
                       </SortableTh>
                     ) : null}
                   </tr>

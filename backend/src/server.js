@@ -23,6 +23,30 @@ import {
   loadMacdYesterdaySignals,
   loadMacdTopPerformers,
   loadMacdDowStocks,
+  loadRsiPairForSymbol,
+  loadRsiYesterdaySignals,
+  loadRsiTopPerformers,
+  loadRsiDowStocks,
+  loadDonchianPairForSymbol,
+  loadDonchianYesterdaySignals,
+  loadDonchianTopPerformers,
+  loadDonchianDowStocks,
+  loadKeltnerPairForSymbol,
+  loadKeltnerYesterdaySignals,
+  loadKeltnerTopPerformers,
+  loadKeltnerDowStocks,
+  loadBollingerPairForSymbol,
+  loadBollingerYesterdaySignals,
+  loadBollingerTopPerformers,
+  loadBollingerDowStocks,
+  loadDarvasPairForSymbol,
+  loadDarvasYesterdaySignals,
+  loadDarvasTopPerformers,
+  loadDarvasDowStocks,
+  loadFibonacciPairForSymbol,
+  loadFibonacciYesterdaySignals,
+  loadFibonacciTopPerformers,
+  loadFibonacciDowStocks,
   parseTopPerformerQuery,
   searchSymbols,
 } from "./scanData.js";
@@ -292,6 +316,360 @@ app.get("/api/systems/macd/dow", async (_req, res) => {
     console.error(err);
     res.status(500).json({
       error: err.message || "MACD Dow stocks query failed",
+    });
+  }
+});
+
+app.get("/api/systems/rsi/pair", async (req, res) => {
+  const symbol = normalizeSymbol(
+    typeof req.query.symbol === "string" ? req.query.symbol : ""
+  );
+  if (!symbol) {
+    res.status(400).json({ error: "Query param symbol is required" });
+    return;
+  }
+  try {
+    const pair = await loadRsiPairForSymbol(symbol);
+    res.json({ symbol, pair });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "RSI pair query failed",
+    });
+  }
+});
+
+app.get("/api/systems/rsi/yesterday-signals", async (_req, res) => {
+  try {
+    const result = await loadRsiYesterdaySignals();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "RSI yesterday signals query failed",
+    });
+  }
+});
+
+app.get("/api/systems/rsi/top-performers", async (req, res) => {
+  const topN = Math.min(
+    100,
+    Math.max(1, Number.parseInt(String(req.query.top ?? "50"), 10) || 50)
+  );
+  try {
+    const result = await loadRsiTopPerformers(topN);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "RSI top performers query failed",
+    });
+  }
+});
+
+app.get("/api/systems/rsi/dow", async (_req, res) => {
+  try {
+    const result = await loadRsiDowStocks();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "RSI Dow stocks query failed",
+    });
+  }
+});
+
+app.get("/api/systems/donchian/pair", async (req, res) => {
+  const symbol = normalizeSymbol(
+    typeof req.query.symbol === "string" ? req.query.symbol : ""
+  );
+  if (!symbol) {
+    res.status(400).json({ error: "Query param symbol is required" });
+    return;
+  }
+  try {
+    const pair = await loadDonchianPairForSymbol(symbol);
+    res.json({ symbol, pair });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Donchian pair query failed",
+    });
+  }
+});
+
+app.get("/api/systems/donchian/yesterday-signals", async (_req, res) => {
+  try {
+    const result = await loadDonchianYesterdaySignals();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Donchian yesterday signals query failed",
+    });
+  }
+});
+
+app.get("/api/systems/donchian/top-performers", async (req, res) => {
+  const topN = Math.min(
+    100,
+    Math.max(1, Number.parseInt(String(req.query.top ?? "50"), 10) || 50)
+  );
+  try {
+    const result = await loadDonchianTopPerformers(topN);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Donchian top performers query failed",
+    });
+  }
+});
+
+app.get("/api/systems/donchian/dow", async (_req, res) => {
+  try {
+    const result = await loadDonchianDowStocks();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Donchian Dow stocks query failed",
+    });
+  }
+});
+
+app.get("/api/systems/keltner/pair", async (req, res) => {
+  const symbol = normalizeSymbol(
+    typeof req.query.symbol === "string" ? req.query.symbol : ""
+  );
+  if (!symbol) {
+    res.status(400).json({ error: "Query param symbol is required" });
+    return;
+  }
+  try {
+    const pair = await loadKeltnerPairForSymbol(symbol);
+    res.json({ symbol, pair });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Keltner pair query failed",
+    });
+  }
+});
+
+app.get("/api/systems/keltner/yesterday-signals", async (_req, res) => {
+  try {
+    const result = await loadKeltnerYesterdaySignals();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Keltner yesterday signals query failed",
+    });
+  }
+});
+
+app.get("/api/systems/keltner/top-performers", async (req, res) => {
+  const topN = Math.min(
+    100,
+    Math.max(1, Number.parseInt(String(req.query.top ?? "50"), 10) || 50)
+  );
+  try {
+    const result = await loadKeltnerTopPerformers(topN);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Keltner top performers query failed",
+    });
+  }
+});
+
+app.get("/api/systems/keltner/dow", async (_req, res) => {
+  try {
+    const result = await loadKeltnerDowStocks();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Keltner Dow stocks query failed",
+    });
+  }
+});
+
+app.get("/api/systems/bollinger-squeeze/pair", async (req, res) => {
+  const symbol = normalizeSymbol(
+    typeof req.query.symbol === "string" ? req.query.symbol : ""
+  );
+  if (!symbol) {
+    res.status(400).json({ error: "Query param symbol is required" });
+    return;
+  }
+  try {
+    const pair = await loadBollingerPairForSymbol(symbol);
+    res.json({ symbol, pair });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Bollinger pair query failed",
+    });
+  }
+});
+
+app.get("/api/systems/bollinger-squeeze/yesterday-signals", async (_req, res) => {
+  try {
+    const result = await loadBollingerYesterdaySignals();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Bollinger yesterday signals query failed",
+    });
+  }
+});
+
+app.get("/api/systems/bollinger-squeeze/top-performers", async (req, res) => {
+  const topN = Math.min(
+    100,
+    Math.max(1, Number.parseInt(String(req.query.top ?? "50"), 10) || 50)
+  );
+  try {
+    const result = await loadBollingerTopPerformers(topN);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Bollinger top performers query failed",
+    });
+  }
+});
+
+app.get("/api/systems/bollinger-squeeze/dow", async (_req, res) => {
+  try {
+    const result = await loadBollingerDowStocks();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Bollinger Dow stocks query failed",
+    });
+  }
+});
+
+app.get("/api/systems/darvas/pair", async (req, res) => {
+  const symbol = normalizeSymbol(
+    typeof req.query.symbol === "string" ? req.query.symbol : ""
+  );
+  if (!symbol) {
+    res.status(400).json({ error: "Query param symbol is required" });
+    return;
+  }
+  try {
+    const pair = await loadDarvasPairForSymbol(symbol);
+    res.json({ symbol, pair });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Darvas pair query failed",
+    });
+  }
+});
+
+app.get("/api/systems/darvas/yesterday-signals", async (_req, res) => {
+  try {
+    const result = await loadDarvasYesterdaySignals();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Darvas yesterday signals query failed",
+    });
+  }
+});
+
+app.get("/api/systems/darvas/top-performers", async (req, res) => {
+  const topN = Math.min(
+    100,
+    Math.max(1, Number.parseInt(String(req.query.top ?? "50"), 10) || 50)
+  );
+  try {
+    const result = await loadDarvasTopPerformers(topN);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Darvas top performers query failed",
+    });
+  }
+});
+
+app.get("/api/systems/darvas/dow", async (_req, res) => {
+  try {
+    const result = await loadDarvasDowStocks();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Darvas Dow stocks query failed",
+    });
+  }
+});
+
+app.get("/api/systems/fibonacci/pair", async (req, res) => {
+  const symbol = normalizeSymbol(
+    typeof req.query.symbol === "string" ? req.query.symbol : ""
+  );
+  if (!symbol) {
+    res.status(400).json({ error: "Query param symbol is required" });
+    return;
+  }
+  try {
+    const pair = await loadFibonacciPairForSymbol(symbol);
+    res.json({ symbol, pair });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Fibonacci pair query failed",
+    });
+  }
+});
+
+app.get("/api/systems/fibonacci/yesterday-signals", async (_req, res) => {
+  try {
+    const result = await loadFibonacciYesterdaySignals();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Fibonacci yesterday signals query failed",
+    });
+  }
+});
+
+app.get("/api/systems/fibonacci/top-performers", async (req, res) => {
+  const topN = Math.min(
+    100,
+    Math.max(1, Number.parseInt(String(req.query.top ?? "50"), 10) || 50)
+  );
+  try {
+    const result = await loadFibonacciTopPerformers(topN);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Fibonacci top performers query failed",
+    });
+  }
+});
+
+app.get("/api/systems/fibonacci/dow", async (_req, res) => {
+  try {
+    const result = await loadFibonacciDowStocks();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Fibonacci Dow stocks query failed",
     });
   }
 });

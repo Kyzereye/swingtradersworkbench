@@ -60,14 +60,14 @@ export default function MacdAboutDialog({ open, onClose }) {
             <p className="ma-problems-text">
               Enter long when the MACD line crosses above the signal line.
               Exit when MACD crosses back below the signal line. No short
-              trades.
+              entries.
             </p>
           </section>
           <section className="ma-problems-section">
             <h3 className="ma-problems-heading">In this app</h3>
             <p className="ma-problems-text">
               Crosses are checked on each daily close. When a cross fires, the
-              trade opens or exits at the next bar&apos;s open. Fast / slow /
+              entry or exit fills at the next bar&apos;s open. Fast / slow /
               signal periods can be optimized per symbol; Load applies the
               scanned values when available. The chart shows price candles
               above and the MACD pane (line, signal, and histogram) below.
