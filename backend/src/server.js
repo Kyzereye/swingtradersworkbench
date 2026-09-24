@@ -6,6 +6,19 @@ import dotenv from "dotenv";
 import { getPool } from "./db.js";
 import { incrementPageview } from "./pageviews.js";
 import {
+  registerUser,
+  verifyEmailToken,
+  loginUser,
+  logoutSession,
+  getUserBySession,
+  getProfile,
+  upsertPhoneNumber,
+  requestPasswordChange,
+  confirmPasswordChange,
+  deleteAccount,
+} from "./auth.js";
+import { parseCookies, serializeCookie } from "./cookies.js";
+import {
   listScanDates,
   loadScanForDate,
   loadScanForLatestDate,
@@ -47,6 +60,10 @@ import {
   loadFibonacciYesterdaySignals,
   loadFibonacciTopPerformers,
   loadFibonacciDowStocks,
+  loadPointFigurePairForSymbol,
+  loadPointFigureYesterdaySignals,
+  loadPointFigureTopPerformers,
+  loadPointFigureDowStocks,
   parseTopPerformerQuery,
   searchSymbols,
 } from "./scanData.js";
@@ -95,8 +112,10 @@ app.use(
     },
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type"],
+    credentials: true,
   })
 );
+app.use(express.json());
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "dbma-trading-backend" });
@@ -109,6 +128,169 @@ app.post("/api/pageview", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message || "Pageview update failed" });
+  }
+});
+
+app.post("/api/auth/register", async (req, res) => {
+  const { email, password, confirmPassword } = req.body || {};
+  if (password !== confirmPassword) {
+    res.status(400).json({ error: "Passwords do not match." });
+    return;
+  }
+  try {
+    const result = await registerUser(email, password);
+    if (result.ok) {
+      res.status(result.status).json({ message: result.message });
+    } else {
+      res.status(result.status).json({ error: result.message });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Registration failed. Please try again later." });
+  }
+});
+
+app.get("/api/auth/verify-email", async (req, res) => {
+  const token = typeof req.query.token === "string" ? req.query.token : "";
+  try {
+    const result = await verifyEmailToken(token);
+    res.status(result.ok ? 200 : 400).json({ message: result.message });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Verification failed. Please try again later." });
+  }
+});
+
+const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+
+app.post("/api/auth/login", async (req, res) => {
+  const { email, password } = req.body || {};
+  try {
+    const result = await loginUser(email, password);
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.message });
+      return;
+    }
+    res.setHeader(
+      "Set-Cookie",
+      serializeCookie("session", result.token, { maxAgeSeconds: SESSION_MAX_AGE_SECONDS })
+    );
+    res.status(200).json({ email: result.email });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Sign in failed. Please try again later." });
+  }
+});
+
+app.post("/api/auth/logout", async (req, res) => {
+  const { session } = parseCookies(req.headers.cookie);
+  try {
+    await logoutSession(session);
+    res.setHeader("Set-Cookie", serializeCookie("session", "", {}));
+    res.status(204).end();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Logout failed. Please try again later." });
+  }
+});
+
+app.get("/api/auth/me", async (req, res) => {
+  const { session } = parseCookies(req.headers.cookie);
+  try {
+    const user = await getUserBySession(session);
+    if (!user) {
+      res.status(200).json({ authenticated: false });
+      return;
+    }
+    res.status(200).json({ authenticated: true, email: user.email });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not check session." });
+  }
+});
+
+async function requireSession(req, res) {
+  const { session } = parseCookies(req.headers.cookie);
+  const user = await getUserBySession(session);
+  if (!user) {
+    res.status(401).json({ error: "Not signed in." });
+    return null;
+  }
+  return user;
+}
+
+app.get("/api/profile", async (req, res) => {
+  try {
+    const user = await requireSession(req, res);
+    if (!user) return;
+    const profile = await getProfile(user.id);
+    res.status(200).json(profile);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load profile." });
+  }
+});
+
+app.put("/api/profile/phone", async (req, res) => {
+  try {
+    const user = await requireSession(req, res);
+    if (!user) return;
+    const { phoneNumber } = req.body || {};
+    const result = await upsertPhoneNumber(user.id, phoneNumber);
+    if (result.ok) {
+      res.status(result.status).json({ phoneNumber: result.phoneNumber });
+    } else {
+      res.status(result.status).json({ error: result.message });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not update phone number." });
+  }
+});
+
+app.post("/api/profile/change-password", async (req, res) => {
+  try {
+    const user = await requireSession(req, res);
+    if (!user) return;
+    const { newPassword, confirmNewPassword } = req.body || {};
+    const result = await requestPasswordChange(user.id, user.email, newPassword, confirmNewPassword);
+    if (result.ok) {
+      res.status(result.status).json({ message: result.message });
+    } else {
+      res.status(result.status).json({ error: result.message });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not start password change. Please try again later." });
+  }
+});
+
+app.get("/api/profile/confirm-password-change", async (req, res) => {
+  const token = typeof req.query.token === "string" ? req.query.token : "";
+  try {
+    const result = await confirmPasswordChange(token);
+    res.status(result.ok ? 200 : 400).json({ message: result.message });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not confirm password change. Please try again later." });
+  }
+});
+
+app.post("/api/profile/delete", async (req, res) => {
+  try {
+    const user = await requireSession(req, res);
+    if (!user) return;
+    const { password } = req.body || {};
+    const result = await deleteAccount(user.id, password);
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.message });
+      return;
+    }
+    res.setHeader("Set-Cookie", serializeCookie("session", "", {}));
+    res.status(200).json({ message: result.message });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not delete account. Please try again later." });
   }
 });
 
@@ -670,6 +852,65 @@ app.get("/api/systems/fibonacci/dow", async (_req, res) => {
     console.error(err);
     res.status(500).json({
       error: err.message || "Fibonacci Dow stocks query failed",
+    });
+  }
+});
+
+app.get("/api/systems/point-figure/pair", async (req, res) => {
+  const symbol = normalizeSymbol(
+    typeof req.query.symbol === "string" ? req.query.symbol : ""
+  );
+  if (!symbol) {
+    res.status(400).json({ error: "Query param symbol is required" });
+    return;
+  }
+  try {
+    const pair = await loadPointFigurePairForSymbol(symbol);
+    res.json({ symbol, pair });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Point & figure pair query failed",
+    });
+  }
+});
+
+app.get("/api/systems/point-figure/yesterday-signals", async (_req, res) => {
+  try {
+    const result = await loadPointFigureYesterdaySignals();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Point & figure yesterday signals query failed",
+    });
+  }
+});
+
+app.get("/api/systems/point-figure/top-performers", async (req, res) => {
+  const topN = Math.min(
+    100,
+    Math.max(1, Number.parseInt(String(req.query.top ?? "50"), 10) || 50)
+  );
+  try {
+    const result = await loadPointFigureTopPerformers(topN);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Point & figure top performers query failed",
+    });
+  }
+});
+
+app.get("/api/systems/point-figure/dow", async (_req, res) => {
+  try {
+    const result = await loadPointFigureDowStocks();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: err.message || "Point & figure Dow stocks query failed",
     });
   }
 });

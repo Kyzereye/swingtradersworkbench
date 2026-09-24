@@ -1,5 +1,6 @@
 export default function TradingRules() {
   return (
+    <div className="auth-page">
     <div className="rules-page">
       <h1 className="rules-title">Open &amp; close rules</h1>
       <p className="rules-intro">
@@ -74,6 +75,7 @@ export default function TradingRules() {
           table use your settings, not the scan defaults.
         </p>
       </section>
+    </div>
     </div>
   );
 }

@@ -15,7 +15,7 @@ export const SR_DEFAULTS = {
   /**
    * Nearby pivots within this fraction of price merge into one zone.
    */
-  mergePct: 0.06,
+  mergePct: 0.035,
   /**
    * Touch / break half-width as fraction of price (tighter than merge).
    * Keeps “at the level” from meaning “somewhere in a 12% blob”.
@@ -27,15 +27,34 @@ export const SR_DEFAULTS = {
   minPivotSpan: 40,
   /** Minimum bars between a zone's first and last touch. */
   minBars: 40,
-  /** No touch for this many bars → the zone's box ends at its last touch. */
-  idleBars: 100,
   /**
    * Closes through to the other side of the band in a row required to
    * mark a zone broken (box ends there; the next touch starts a new one).
    */
   breakConfirmBars: 10,
+  /**
+   * A level going untouched this long ends the piece being drawn. Not a
+   * judgement that the level died — it may well be retested later, and that
+   * retest draws its own piece. It stops one box being stretched from a
+   * cluster of real activity all the way out to an isolated revisit months
+   * later, which is the shape of every "this line should stop at X" report.
+   * Calibrated against the windows those reports asked for: the gaps inside
+   * wanted pieces ran to 112 bars, the ones that had to be cut started at
+   * 139.
+   */
+  idleBars: 120,
   /** Keep only the strongest N zones (stops chart spaghetti). */
-  maxLevels: 12,
+  maxLevels: 15,
+  /**
+   * Keep only the strongest N drawn pieces. A zone legitimately acts as
+   * support in one era and resistance in another, so one zone can produce
+   * several pieces — measured across 50 symbols that averaged 4.4 pieces per
+   * zone and 48 lines per chart, which reads as spaghetti however defensible
+   * each line is. Ranking pieces and keeping the best adapts per symbol
+   * instead of applying a blunt touch threshold that would delete real
+   * levels on quiet charts.
+   */
+  maxPieces: 12,
 };
 
 /**
@@ -203,12 +222,13 @@ export function computeSupportResistance(bars, options = {}) {
   const minTouches = options.minTouches ?? SR_DEFAULTS.minTouches;
   const minPivotSpan = options.minPivotSpan ?? SR_DEFAULTS.minPivotSpan;
   const minBars = options.minBars ?? SR_DEFAULTS.minBars;
-  const idleBars = Math.max(1, options.idleBars ?? SR_DEFAULTS.idleBars);
   const breakConfirmBars = Math.max(
     1,
     options.breakConfirmBars ?? SR_DEFAULTS.breakConfirmBars
   );
+  const idleBars = Math.max(1, options.idleBars ?? SR_DEFAULTS.idleBars);
   const maxLevels = options.maxLevels ?? SR_DEFAULTS.maxLevels;
+  const maxPieces = options.maxPieces ?? SR_DEFAULTS.maxPieces;
 
   if (!bars?.length) return [];
 
@@ -221,6 +241,21 @@ export function computeSupportResistance(bars, options = {}) {
   const levels = [];
   let runId = 0;
 
+  // Which side the closes between two points mostly sat on — a real trend,
+  // not one bar's wobble. Ties (or a near-even split) keep the fallback side
+  // rather than flip on ambiguous evidence.
+  const sideBetween = (from, to, atPrice, fallback) => {
+    let above = 0;
+    let below = 0;
+    for (let i = from; i <= to; i++) {
+      const cl = bars[i].close;
+      if (cl > atPrice) above += 1;
+      else if (cl < atPrice) below += 1;
+    }
+    if (above === below) return fallback;
+    return above > below ? "support" : "resistance";
+  };
+
   for (const c of clusters) {
     if (c.indices.length < 2) continue;
     const pivotLo = Math.min(...c.indices);
@@ -232,6 +267,19 @@ export function computeSupportResistance(bars, options = {}) {
     for (let k = 0; k < c.indices.length; k++) {
       pivotKindByIndex.set(c.indices[k], c.kinds[k]);
     }
+
+    // A cluster can span pivots that drifted a few percent over its life
+    // (2025's actual touches aren't at the exact price 2024's were). Band/
+    // break decisions still use the cluster's mid so a slow drift still
+    // reads as "the same level", but each drawn piece shows the price its
+    // own pivots actually touched, not a stale blend from a different era.
+    const localPrice = (from, to) => {
+      const local = [];
+      for (let k = 0; k < c.indices.length; k++) {
+        if (c.indices[k] >= from && c.indices[k] <= to) local.push(c.prices[k]);
+      }
+      return local.length ? median(local) : price;
+    };
 
     // Side price is on when a segment starts — decides which direction
     // counts as a break. A swing high here means price came up into the
@@ -251,6 +299,12 @@ export function computeSupportResistance(bars, options = {}) {
     // a confirmed break through to the other side. Idle time alone does
     // not: a level that goes untested for months and then gets retested
     // is still the same level, not a new one.
+    //
+    // A touch spans from the bar price entered the band to the last bar it
+    // was still in it. Price often arrives and then sits at a level for
+    // days or weeks before resolving, and all of that is the level being
+    // tested — recording only the arrival bar would end a level's box on
+    // the day price got there rather than the day it finally left.
     let inside = false;
     let curKind = null;
     let curTouches = [];
@@ -272,7 +326,9 @@ export function computeSupportResistance(bars, options = {}) {
       if (inBand) {
         if (!inside) {
           if (curKind === null) curKind = roleAt(i);
-          curTouches.push(i);
+          curTouches.push({ entry: i, exit: i });
+        } else if (curTouches.length) {
+          curTouches[curTouches.length - 1].exit = i;
         }
         inside = true;
         breakStreak = 0;
@@ -295,46 +351,73 @@ export function computeSupportResistance(bars, options = {}) {
     }
     endRun();
 
-    // Phase 2: a run counts as a real level only if its touches, taken
-    // together across the whole run, clear minTouches/minBars — a brief
-    // retest shouldn't need to qualify on its own just because a long
-    // idle gap came before it. Once a run qualifies, split it into boxes
-    // at idleBars gaps purely for drawing (so a box doesn't stretch across
-    // months nothing happened). Each box is colored by its *own* majority
-    // side, not the run's — a run can still be one qualifying level even
-    // if one piece of it, taken alone, leaned the other way.
-    const majoritySide = (from, to, fallback) => {
-      let above = 0;
-      let below = 0;
-      for (let i = from; i <= to; i++) {
-        const cl = bars[i].close;
-        if (cl > price) above += 1;
-        else if (cl < price) below += 1;
-      }
-      if (above === below) return fallback;
-      return above > below ? "support" : "resistance";
-    };
+    // A *cluster* (this price) counts as a real level only if its touches,
+    // taken together across every run, clear minTouches/minBars — not each
+    // run in isolation. A confirmed break legitimately ends a run (price
+    // left and came back from the other side), but that shouldn't zero out
+    // the level's track record: a level tested, broken, and later retested
+    // is still the same level, worth showing every time it was touched, not
+    // just the one run that happens to have enough touches on its own.
+    if (!runs.length) continue;
+    const totalTouches = runs.reduce((n, r) => n + r.touches.length, 0);
+    const lastRunTouches = runs[runs.length - 1].touches;
+    const firstTouch = runs[0].touches[0].entry;
+    const lastTouch = lastRunTouches[lastRunTouches.length - 1].exit;
+    if (totalTouches < minTouches) continue;
+    if (lastTouch - firstTouch < minBars) continue;
 
+    const score = totalTouches * Math.log10(lastTouch - firstTouch + 10);
+    const thisRun = runId++;
+
+    // Once a cluster qualifies, every run draws — including a run with just
+    // one touch. Split into pieces wherever the level's own role actually
+    // flips (support to resistance or back), not on idle time alone: a
+    // level untested for months and then retested from the *same* side is
+    // still one piece, however long the quiet stretch; retested from the
+    // *other* side is a real boundary, drawn as its own piece from that
+    // touch on.
     for (const run of runs) {
       const touches = run.touches;
-      const firstTouch = touches[0];
-      const lastTouch = touches[touches.length - 1];
-      if (touches.length < minTouches) continue;
-      if (lastTouch - firstTouch < minBars) continue;
 
-      const score = touches.length * Math.log10(lastTouch - firstTouch + 10);
-      const thisRun = runId++;
+      // Pass 1: which side the trend of closes leading into each touch was
+      // on — a real short stretch of days, not one bar's wobble. For a
+      // touch after the first, that's the stretch from where price last
+      // left the level to where it came back.
+      const rawKind = touches.map((t, k) =>
+        k === 0
+          ? roleAt(t.entry)
+          : sideBetween(touches[k - 1].exit, t.entry, price, roleAt(t.entry))
+      );
 
-      let pieceStart = 0;
+      // Pass 2: a single touch reading the opposite of *both* neighbors is
+      // a wobble that got reverted right back, not a real flip — smoothed
+      // to match them. A touch at the very end of the run has no "next" to
+      // revert it, so a lone flip there stands: that's the genuine
+      // single-touch retest from the other side.
+      const kind = [...rawKind];
+      for (let k = 1; k < kind.length - 1; k++) {
+        if (kind[k] !== kind[k - 1] && kind[k - 1] === kind[k + 1]) {
+          kind[k] = kind[k - 1];
+        }
+      }
+
+      // Pass 3: group consecutive touches sharing the same (smoothed) kind
+      // into one drawn piece each.
+      let segStart = 0;
       for (let k = 1; k <= touches.length; k++) {
         const isLast = k === touches.length;
-        if (!isLast && touches[k] - touches[k - 1] < idleBars) continue;
-        const startIndex = touches[pieceStart];
-        const endIndex = touches[k - 1];
+        if (!isLast) {
+          const flipped = kind[k] !== kind[segStart];
+          const wentQuiet = touches[k].entry - touches[k - 1].exit >= idleBars;
+          if (!flipped && !wentQuiet) continue;
+        }
+        const startIndex = touches[segStart].entry;
+        const endIndex = touches[k - 1].exit;
+        const piecePrice = localPrice(startIndex, endIndex);
         levels.push({
-          price,
-          kind: majoritySide(startIndex, endIndex, run.kind),
-          touches: k - pieceStart,
+          price: piecePrice,
+          kind: kind[segStart],
+          touches: k - segStart,
           startIndex,
           endIndex,
           startTime: bars[startIndex].date,
@@ -342,7 +425,7 @@ export function computeSupportResistance(bars, options = {}) {
           score,
           _run: thisRun,
         });
-        pieceStart = k;
+        segStart = k;
       }
     }
   }
@@ -360,8 +443,56 @@ export function computeSupportResistance(bars, options = {}) {
       .slice(0, Math.max(1, maxLevels))
   );
 
-  return levels
-    .filter((lv) => keptRuns.has(lv._run))
+  const kept = levels.filter((lv) => keptRuns.has(lv._run));
+
+  // A level's pieces are already split at every real flip, but a confirmed
+  // break still leaves a gap between the run that broke and the next run
+  // that retested it — even when both runs land on the same side. Stretch
+  // each piece forward to meet the next piece of its own level when they
+  // agree on side, so a level tested, broken, and retested from the same
+  // side reads as one continuous line across the quiet break instead of two
+  // disconnected fragments. A piece followed by the *opposite* side is a
+  // real boundary, not a gap, so it's left alone — and neither is a stretch
+  // longer than idleBars, which would undo the split that just separated a
+  // level's real activity from a much later isolated revisit.
+  const byRun = new Map();
+  for (const lv of kept) {
+    if (!byRun.has(lv._run)) byRun.set(lv._run, []);
+    byRun.get(lv._run).push(lv);
+  }
+  for (const pieces of byRun.values()) {
+    pieces.sort((a, b) => a.startIndex - b.startIndex);
+    for (let i = 0; i < pieces.length - 1; i++) {
+      if (pieces[i].kind !== pieces[i + 1].kind) continue;
+      if (pieces[i + 1].startIndex - pieces[i].endIndex >= idleBars) continue;
+      pieces[i].endIndex = pieces[i + 1].startIndex;
+      pieces[i].endTime = pieces[i + 1].startTime;
+      // The stretch just added was picked precisely because it agreed with
+      // this piece's side, but re-grounding the price/kind in the fuller
+      // range (touches *and* the quiet break) keeps both honest now that
+      // the box is longer than just its own touches.
+      pieces[i].kind = sideBetween(
+        pieces[i].startIndex,
+        pieces[i].endIndex,
+        pieces[i].price,
+        pieces[i].kind
+      );
+    }
+  }
+
+  // Rank the drawn pieces the same way zones are ranked — touches weighted
+  // by how long the piece held — and keep the strongest. Applied after
+  // bridging so a piece is judged on the span it actually draws.
+  const pieceStrength = (lv) =>
+    lv.touches * Math.log10(lv.endIndex - lv.startIndex + 10);
+  const strongest =
+    kept.length > maxPieces
+      ? [...kept]
+          .sort((a, b) => pieceStrength(b) - pieceStrength(a))
+          .slice(0, Math.max(1, maxPieces))
+      : kept;
+
+  return strongest
     .map(({ _run, ...lv }) => lv)
     .sort((a, b) => a.price - b.price || a.startIndex - b.startIndex);
 }

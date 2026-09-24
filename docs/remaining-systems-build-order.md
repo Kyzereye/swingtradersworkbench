@@ -1,6 +1,6 @@
 # Remaining systems — build order
 
-Eight systems are done in the app:
+Ten systems are done in the app:
 
 1. Moving average crossover
 2. Triple Moving Average Alignment
@@ -10,6 +10,8 @@ Eight systems are done in the app:
 6. Keltner Channel Trend
 7. Bollinger Band Squeeze & Reversion
 8. Darvas Box
+9. Fibonacci retracement / extension
+10. Point & figure
 
 Below: everything else from the Systems catalog, ranked **easiest → hardest** for this codebase (daily bars, long-only rules, chart + optimize/scan/dialogs pattern).
 
@@ -37,11 +39,9 @@ Difficulty reflects: rule clarity, reuse of existing MA/ATR/indicator helpers, c
 | 18 | **Gartley / Harmonic Pattern** | Price action & structure | Multi-leg Fibonacci geometry (Gartley, Bat, Butterfly, Crab) at a PRZ—detection and validation are heavy. |
 | 19 | **Elliott Wave** | Price action & structure | Impulse/corrective counts are ambiguous; reliable auto-wave counting is the hardest of the list. |
 
-## Suggested next three
+## Suggested next
 
-1. Japanese Candlestick Reversal  
-2. Fibonacci retracement / extension  
-3. Point & figure  
+1. **Japanese Candlestick Reversal** — stated, not yet started
 
 Same pipeline as existing systems — see `system-page-definition-of-done.md`.
 

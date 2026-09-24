@@ -13,6 +13,7 @@ const AVAILABLE_SYSTEM_IDS = new Set([
   "darvas",
   "candlestick-reversal",
   "fibonacci",
+  "point-figure",
 ]);
 
 export default function SystemsTab() {

@@ -12,6 +12,11 @@ import SymbolChangesTab from "./SymbolChangesTab.jsx";
 import UserDashboardTab from "./UserDashboardTab.jsx";
 import SystemsTab from "./SystemsTab.jsx";
 import DisclaimerDialog from "./DisclaimerDialog.jsx";
+import RegisterForm from "./RegisterForm.jsx";
+import LoginForm from "./LoginForm.jsx";
+import VerifyEmailPage from "./VerifyEmailPage.jsx";
+import ConfirmPasswordChangePage from "./ConfirmPasswordChangePage.jsx";
+import ProfilePage from "./ProfilePage.jsx";
 import OpensClosesTable from "./OpensClosesTable.jsx";
 import { ENTRY_CONFIRM, simulateTrades } from "./tradeSignals.js";
 
@@ -99,7 +104,11 @@ function formatChartMeta(companyName, sym, fromDate, toDate) {
 }
 
 export default function App() {
-  const [page, setPage] = useState("app");
+  const [page, setPage] = useState(() => {
+    if (window.location.pathname === "/verify-email") return "verify-email";
+    if (window.location.pathname === "/confirm-password-change") return "confirm-password-change";
+    return "app";
+  });
   const [tab, setTab] = useState("home");
   const [systemsListKey, setSystemsListKey] = useState(0);
   const [symbol, setSymbol] = useState(DEFAULT_SYMBOL);
@@ -114,6 +123,8 @@ export default function App() {
   const [entryConfirm, setEntryConfirm] = useState(ENTRY_CONFIRM.SINGLE);
   const [favorites, setFavorites] = useState(loadFavorites);
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(loadDisclaimerAccepted);
+  const [authState, setAuthState] = useState("checking");
+  const [authEmail, setAuthEmail] = useState("");
 
   function acceptDisclaimer() {
     try {
@@ -123,6 +134,46 @@ export default function App() {
     }
     void fetch("/api/pageview", { method: "POST", keepalive: true });
     setDisclaimerAccepted(true);
+  }
+
+  useEffect(() => {
+    fetch("/api/auth/me", { credentials: "include" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.authenticated) {
+          setAuthState("authed");
+          setAuthEmail(data.email);
+        } else {
+          setAuthState("anon");
+        }
+      })
+      .catch(() => setAuthState("anon"));
+  }, []);
+
+  function handleLoginSuccess(email) {
+    setAuthEmail(email);
+    setAuthState("authed");
+    setPage("app");
+  }
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
+    setAuthEmail("");
+    setAuthState("anon");
+    setPage("app");
+  }
+
+  function handlePasswordChangeConfirmed() {
+    window.history.replaceState({}, "", "/");
+    setAuthEmail("");
+    setAuthState("anon");
+    setPage("app");
+  }
+
+  function handleAccountDeleted() {
+    setAuthEmail("");
+    setAuthState("anon");
+    setPage("app");
   }
 
   useEffect(() => {
@@ -237,7 +288,31 @@ export default function App() {
 
   return (
     <>
-      {!disclaimerAccepted ? (
+      {page === "verify-email" ? (
+        <VerifyEmailPage
+          onGoLogin={() => {
+            window.history.replaceState({}, "", "/");
+            setPage("app");
+          }}
+        />
+      ) : page === "confirm-password-change" ? (
+        <ConfirmPasswordChangePage onConfirmed={handlePasswordChangeConfirmed} />
+      ) : authState === "checking" ? (
+        <div className="auth-page">
+          <div className="auth-card">
+            <p className="auth-intro">Loading…</p>
+          </div>
+        </div>
+      ) : authState === "anon" ? (
+        page === "register" ? (
+          <RegisterForm onGoLogin={() => setPage("app")} />
+        ) : (
+          <LoginForm
+            onGoRegister={() => setPage("register")}
+            onLoginSuccess={handleLoginSuccess}
+          />
+        )
+      ) : !disclaimerAccepted ? (
         <DisclaimerDialog onAccept={acceptDisclaimer} />
       ) : (
     <div className="app-shell">
@@ -245,9 +320,14 @@ export default function App() {
         page={page}
         onGoHome={goHome}
         onGoRules={() => setPage("rules")}
+        onGoProfile={() => setPage("profile")}
+        authEmail={authEmail}
+        onLogout={handleLogout}
       />
       {page === "rules" ? (
         <TradingRules />
+      ) : page === "profile" ? (
+        <ProfilePage onAccountDeleted={handleAccountDeleted} />
       ) : (
         <>
           <DashboardTabs tab={tab} onChange={onTabChange} />

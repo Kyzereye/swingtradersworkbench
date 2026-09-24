@@ -30,6 +30,13 @@ MYSQL_DATABASE=dbma-trading
 HISTORY_YEARS=3
 
 FMP_API_KEY=your_fmp_api_key_here
+
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your_smtp_user
+SMTP_PASS=your_smtp_password
+SMTP_FROM=noreply@example.com
 ```
 
 Optional:

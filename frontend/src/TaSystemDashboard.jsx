@@ -11,6 +11,7 @@ import DarvasChart from "./DarvasChart.jsx";
 import CandlestickReversalChart from "./CandlestickReversalChart.jsx";
 import FibonacciChart from "./FibonacciChart.jsx";
 import FibonacciLegsTable from "./FibonacciLegsTable.jsx";
+import PointFigureChart from "./PointFigureChart.jsx";
 import { SR_DEFAULTS } from "./supportResistance.js";
 import OpensClosesTable from "./OpensClosesTable.jsx";
 import TopPerformersDialog from "./TopPerformersDialog.jsx";
@@ -36,6 +37,8 @@ import DarvasMaFilterDialog from "./DarvasMaFilterDialog.jsx";
 import DarvasSettingsDialog from "./DarvasSettingsDialog.jsx";
 import FibonacciProblemsDialog from "./FibonacciProblemsDialog.jsx";
 import FibonacciAboutDialog from "./FibonacciAboutDialog.jsx";
+import PointFigureProblemsDialog from "./PointFigureProblemsDialog.jsx";
+import PointFigureAboutDialog from "./PointFigureAboutDialog.jsx";
 import { simulateMaCrossover } from "./maCrossoverSignals.js";
 import { simulateTripleMa } from "./tripleMaSignals.js";
 import { simulateMacd } from "./macdSignals.js";
@@ -46,6 +49,7 @@ import { simulateBollinger } from "./bollingerSignals.js";
 import { simulateDarvas } from "./darvasSignals.js";
 import { simulateFibonacci } from "./fibonacciSignals.js";
 import { FIB_LEG_DEFAULTS } from "./fibonacci.js";
+import { simulatePointFigure } from "./pointFigureSignals.js";
 import { parsePeriod } from "./util/parsePeriod.js";
 
 const DEFAULT_SYMBOL = "AAPL";
@@ -65,6 +69,7 @@ export default function TaSystemDashboard({ system }) {
   const isDarvas = system?.id === "darvas";
   const isCandlestickReversal = system?.id === "candlestick-reversal";
   const isFibonacci = system?.id === "fibonacci";
+  const isPointFigure = system?.id === "point-figure";
   const usesChart =
     isMaCrossover ||
     isTripleMa ||
@@ -75,7 +80,8 @@ export default function TaSystemDashboard({ system }) {
     isBollinger ||
     isDarvas ||
     isCandlestickReversal ||
-    isFibonacci;
+    isFibonacci ||
+    isPointFigure;
 
   const [input, setInput] = useState(DEFAULT_SYMBOL);
   const [loading, setLoading] = useState(false);
@@ -169,6 +175,11 @@ export default function TaSystemDashboard({ system }) {
   );
   const [fibAboutOpen, setFibAboutOpen] = useState(false);
   const [fibProblemsOpen, setFibProblemsOpen] = useState(false);
+  const [boxPctInput, setBoxPctInput] = useState("1");
+  const [reversalBoxesInput, setReversalBoxesInput] = useState("3");
+  const [pointFigureAboutOpen, setPointFigureAboutOpen] = useState(false);
+  const [pointFigureProblemsOpen, setPointFigureProblemsOpen] =
+    useState(false);
 
   const fast = parsePeriod(fastInput, isTripleMa ? 10 : isMacd ? 12 : 21);
   const medium = Math.max(parsePeriod(mediumInput, 20), fast + 1);
@@ -258,6 +269,14 @@ export default function TaSystemDashboard({ system }) {
     () => ({ minLegPct: fibMinLegPct, minLegAtr: fibMinLegAtr }),
     [fibMinLegPct, fibMinLegAtr],
   );
+  const boxPctParsed = parseFloat(boxPctInput);
+  const boxPct = Number.isFinite(boxPctParsed)
+    ? Math.min(20, Math.max(0.1, boxPctParsed))
+    : 1;
+  const reversalBoxes = Math.max(
+    1,
+    Math.min(10, parsePeriod(reversalBoxesInput, 3)),
+  );
 
   const { trades, markers } = useMemo(() => {
     if (!bars.length) return { trades: [], markers: [] };
@@ -310,6 +329,9 @@ export default function TaSystemDashboard({ system }) {
         fibLegOpts,
       );
     }
+    if (isPointFigure) {
+      return simulatePointFigure(bars, boxPct, reversalBoxes);
+    }
     return { trades: [], markers: [] };
   }, [
     isMaCrossover,
@@ -321,6 +343,7 @@ export default function TaSystemDashboard({ system }) {
     isBollinger,
     isDarvas,
     isFibonacci,
+    isPointFigure,
     bars,
     fast,
     medium,
@@ -351,6 +374,8 @@ export default function TaSystemDashboard({ system }) {
     fibEntryLevel,
     fibExtensionTarget,
     fibLegOpts,
+    boxPct,
+    reversalBoxes,
   ]);
 
   const loadSymbol = useCallback(
@@ -393,7 +418,11 @@ export default function TaSystemDashboard({ system }) {
                           ? fetch(`/api/systems/fibonacci/pair?${q}`, {
                               cache: "no-store",
                             })
-                          : null;
+                          : isPointFigure
+                            ? fetch(`/api/systems/point-figure/pair?${q}`, {
+                                cache: "no-store",
+                              })
+                            : null;
 
         const barsRes = await barsPromise;
         const barsBody = await barsRes.json().catch(() => ({}));
@@ -523,6 +552,14 @@ export default function TaSystemDashboard({ system }) {
               setFibEntryLevelInput("0.618");
               setFibExtensionTargetInput("1.618");
             }
+          } else if (isPointFigure) {
+            if (pair?.boxPct != null && pair?.reversalBoxes != null) {
+              setBoxPctInput(String(pair.boxPct));
+              setReversalBoxesInput(String(pair.reversalBoxes));
+            } else {
+              setBoxPctInput("1");
+              setReversalBoxesInput("3");
+            }
           }
         }
       } catch (err) {
@@ -543,6 +580,7 @@ export default function TaSystemDashboard({ system }) {
       isBollinger,
       isDarvas,
       isFibonacci,
+      isPointFigure,
     ],
   );
 
@@ -561,7 +599,8 @@ export default function TaSystemDashboard({ system }) {
         !isKeltner &&
         !isBollinger &&
         !isDarvas &&
-        !isFibonacci)
+        !isFibonacci &&
+        !isPointFigure)
     )
       return undefined;
     let cancelled = false;
@@ -569,9 +608,11 @@ export default function TaSystemDashboard({ system }) {
       setTopLoading(true);
       setTopError(null);
       try {
-        const url = isFibonacci
-          ? "/api/systems/fibonacci/top-performers?top=50"
-          : isDarvas
+        const url = isPointFigure
+          ? "/api/systems/point-figure/top-performers?top=50"
+          : isFibonacci
+            ? "/api/systems/fibonacci/top-performers?top=50"
+            : isDarvas
             ? "/api/systems/darvas/top-performers?top=50"
             : isBollinger
               ? "/api/systems/bollinger-squeeze/top-performers?top=50"
@@ -617,6 +658,7 @@ export default function TaSystemDashboard({ system }) {
     isBollinger,
     isDarvas,
     isFibonacci,
+    isPointFigure,
   ]);
 
   useEffect(() => {
@@ -630,7 +672,8 @@ export default function TaSystemDashboard({ system }) {
         !isKeltner &&
         !isBollinger &&
         !isDarvas &&
-        !isFibonacci)
+        !isFibonacci &&
+        !isPointFigure)
     )
       return undefined;
     let cancelled = false;
@@ -638,9 +681,11 @@ export default function TaSystemDashboard({ system }) {
       setSignalsLoading(true);
       setSignalsError(null);
       try {
-        const url = isFibonacci
-          ? "/api/systems/fibonacci/yesterday-signals"
-          : isDarvas
+        const url = isPointFigure
+          ? "/api/systems/point-figure/yesterday-signals"
+          : isFibonacci
+            ? "/api/systems/fibonacci/yesterday-signals"
+            : isDarvas
             ? "/api/systems/darvas/yesterday-signals"
             : isBollinger
               ? "/api/systems/bollinger-squeeze/yesterday-signals"
@@ -686,6 +731,7 @@ export default function TaSystemDashboard({ system }) {
     isBollinger,
     isDarvas,
     isFibonacci,
+    isPointFigure,
   ]);
 
   useEffect(() => {
@@ -699,7 +745,8 @@ export default function TaSystemDashboard({ system }) {
         !isKeltner &&
         !isBollinger &&
         !isDarvas &&
-        !isFibonacci)
+        !isFibonacci &&
+        !isPointFigure)
     )
       return undefined;
     let cancelled = false;
@@ -707,9 +754,11 @@ export default function TaSystemDashboard({ system }) {
       setDowLoading(true);
       setDowError(null);
       try {
-        const url = isFibonacci
-          ? "/api/systems/fibonacci/dow"
-          : isDarvas
+        const url = isPointFigure
+          ? "/api/systems/point-figure/dow"
+          : isFibonacci
+            ? "/api/systems/fibonacci/dow"
+            : isDarvas
             ? "/api/systems/darvas/dow"
             : isBollinger
               ? "/api/systems/bollinger-squeeze/dow"
@@ -755,6 +804,7 @@ export default function TaSystemDashboard({ system }) {
     isBollinger,
     isDarvas,
     isFibonacci,
+    isPointFigure,
   ]);
 
   function onSubmit(e) {
@@ -810,6 +860,10 @@ export default function TaSystemDashboard({ system }) {
         setFibEntryLevelInput(String(row.optEntryLevel));
       if (row.optExtensionTarget != null)
         setFibExtensionTargetInput(String(row.optExtensionTarget));
+    } else if (isPointFigure) {
+      if (row.optBoxPct != null) setBoxPctInput(String(row.optBoxPct));
+      if (row.optReversalBoxes != null)
+        setReversalBoxesInput(String(row.optReversalBoxes));
     }
     loadSymbol(row.symbol);
   }
@@ -1848,6 +1902,101 @@ export default function TaSystemDashboard({ system }) {
             </details>
           </>
         ) : null}
+
+        {isPointFigure ? (
+          <>
+            <div className="ma-controls ma-controls-actions">
+              <button
+                type="button"
+                className="sidebar-top-performers"
+                onClick={() => setTopOpen(true)}
+              >
+                Top performers
+              </button>
+              <button
+                type="button"
+                className="sidebar-top-performers"
+                onClick={() => setSignalsOpen(true)}
+              >
+                Yesterday&apos;s signals
+              </button>
+              <button
+                type="button"
+                className="sidebar-top-performers"
+                onClick={() => setDowOpen(true)}
+              >
+                Dow 30
+              </button>
+              <button
+                type="button"
+                className="sidebar-top-performers"
+                onClick={() => setPointFigureProblemsOpen(true)}
+              >
+                Pros &amp; cons
+              </button>
+            </div>
+            <details
+              className="expand-panel sidebar-settings-expand"
+              aria-label="Point & figure settings"
+            >
+              <summary className="sidebar-settings-summary">
+                <span>Point &amp; figure settings</span>
+              </summary>
+              <div
+                className="ma-controls"
+                aria-label="Point & figure settings"
+              >
+                <label className="ma-controls-field">
+                  <span>Box size %</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={boxPctInput}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^\d.]/g, "");
+                      const i = raw.indexOf(".");
+                      setBoxPctInput(
+                        i === -1
+                          ? raw
+                          : raw.slice(0, i + 1) +
+                              raw.slice(i + 1).replace(/\./g, ""),
+                      );
+                    }}
+                    aria-label="Point and figure box size, percent"
+                  />
+                </label>
+                <label className="ma-controls-field">
+                  <span>Reversal boxes</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={reversalBoxesInput}
+                    onChange={(e) =>
+                      setReversalBoxesInput(e.target.value.replace(/\D/g, ""))
+                    }
+                    aria-label="Point and figure reversal box count"
+                  />
+                </label>
+              </div>
+              <dl className="point-figure-legend">
+                <div className="point-figure-legend-row">
+                  <dt>
+                    <span className="point-figure-legend-ring point-figure-legend-entry" />
+                    Entry
+                  </dt>
+                  <dd>First box above the prior X column</dd>
+                </div>
+                <div className="point-figure-legend-row">
+                  <dt>
+                    <span className="point-figure-legend-ring point-figure-legend-exit" />
+                    Exit
+                  </dt>
+                  <dd>First box below the prior O column</dd>
+                </div>
+              </dl>
+            </details>
+          </>
+        ) : null}
       </aside>
 
       <main className="main-content" aria-label={system?.name ?? "TA system"}>
@@ -2139,6 +2288,36 @@ export default function TaSystemDashboard({ system }) {
               entryLevel={fibEntryLevel}
               legOpts={fibLegOpts}
             />
+          </>
+        ) : null}
+
+        {isPointFigure ? (
+          <>
+            <div className="systems-dash-title-row">
+              <h1 className="systems-dash-title">{system.name}</h1>
+              <button
+                type="button"
+                className="systems-about-btn"
+                onClick={() => setPointFigureAboutOpen(true)}
+                aria-label="About Point & figure"
+                title="About this system"
+              >
+                ?
+              </button>
+            </div>
+            <div className="panel">
+              <PointFigureChart
+                data={bars}
+                markers={markers}
+                boxPct={boxPct}
+                reversalBoxes={reversalBoxes}
+                symbol={input}
+                companyName={companyName}
+              />
+            </div>
+            {bars.length && trades.length ? (
+              <OpensClosesTable trades={trades} asOfDate={asOfDate} />
+            ) : null}
           </>
         ) : null}
       </main>
@@ -2635,6 +2814,60 @@ export default function TaSystemDashboard({ system }) {
           <FibonacciAboutDialog
             open={fibAboutOpen}
             onClose={() => setFibAboutOpen(false)}
+          />
+        </>
+      ) : null}
+
+      {isPointFigure ? (
+        <>
+          <TopPerformersDialog
+            open={topOpen}
+            onClose={() => setTopOpen(false)}
+            title="Point & figure — top performers"
+            subtitle="Highest ~2y score (1-share $ P/L) · stock & ETF"
+            note={
+              "The top performers were sorted by profit over about the last 2 years (percent). " +
+              "Box size and reversal count were chosen using the stock’s full price history. " +
+              "Percent gains can look huge next to dollar gains — " +
+              "open the chart’s opens & closes table to compare.\n\n" +
+              "Be wary, some of the the P/L and P/L% can be misleading.  Review the chart will often show why."
+            }
+            rows={topRows}
+            loading={topLoading}
+            error={topError}
+            onSelectRow={onSelectTopRow}
+          />
+          <YesterdaySignalsDialog
+            open={signalsOpen}
+            onClose={() => setSignalsOpen(false)}
+            title="Point & figure — yesterday's signals"
+            subtitle="Entry/exit on each symbol's last session (all assets)"
+            note="Close is the signal-day close (the bar that completed the breakout box), not the next-open fill. Session dates differ by market (e.g. stocks vs forex)."
+            rows={signalRows}
+            loading={signalsLoading}
+            error={signalsError}
+            onSelectRow={onSelectSignalRow}
+          />
+          <DowStocksDialog
+            open={dowOpen}
+            onClose={() => setDowOpen(false)}
+            title="Point & figure — Dow 30"
+            subtitle={
+              "Dow stocks using optimized Point & figure box size and reversal count. " +
+              "Profit is about the last 2 years, one share bought and sold."
+            }
+            rows={dowRows}
+            loading={dowLoading}
+            error={dowError}
+            onSelectRow={onSelectDowRow}
+          />
+          <PointFigureProblemsDialog
+            open={pointFigureProblemsOpen}
+            onClose={() => setPointFigureProblemsOpen(false)}
+          />
+          <PointFigureAboutDialog
+            open={pointFigureAboutOpen}
+            onClose={() => setPointFigureAboutOpen(false)}
           />
         </>
       ) : null}

@@ -18,6 +18,7 @@
     "analyze-bollinger": "node scripts/analyze-bollinger.mjs",
     "analyze-darvas": "node scripts/analyze-darvas.mjs",
     "analyze-fibonacci": "node scripts/analyze-fibonacci.mjs",
+    "analyze-point-figure": "node scripts/analyze-point-figure.mjs",
     "pipeline:nightly": "node scripts/pipeline-nightly.mjs"
   },
   "devDependencies": {

@@ -175,14 +175,11 @@ Copy a row when a system ships. Mark **Y** / **N** / **—**.
 | `keltner` | Y | Y | Y | Y | Y | Y | Y |
 | `bollinger-squeeze` | Y | Y | Y | Y* | Y | — | code |
 | `darvas` | Y | Y | Y | Y* | Y | — | code |
-| `fibonacci` | Y | Y | Y | Y* | Y | Y** | code |
+| `fibonacci` | Y | Y | Y | Y | Y | Y | Y |
+| `point-figure` | Y | Y | Y | Y | Y | Y | Y |
 | *(next)* | | | | | | | |
 
 \* SQL DDL in repo; live DB + analyze script + E2E verify are the user’s ops steps.
-\*\* Chart/markers/dialogs/settings verified live in a browser (AAPL) with real
-bars; Top/Yesterday/Dow/scanned-param-on-Load still need the DDL applied +
-`npm run analyze-fibonacci` before they'll return data — verified they fail
-gracefully (visible error in the dialog, not a crash) until then.
 
 ### Notes
 

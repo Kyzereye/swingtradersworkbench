@@ -73,20 +73,16 @@ Three npm workspaces-by-hand (root, `backend/`, `frontend/`), all ESM.
 - **`scripts/*.mjs`** — Node CLIs run by cron. **They import pure-JS modules directly from `frontend/src`** (e.g. `scripts/analyze-keltner.mjs` imports `../frontend/src/scanKeltner.js`). Therefore `*.js` files under `frontend/src` that scripts touch must stay browser- and Node-safe (no DOM, no JSX, no Vite-only imports).
 - **`sql_queries/sql_queries.sql`** — full schema; **drops and recreates** tables. One `system_<name>_scan` table per system, unique on `(symbol_id, as_of_date)`.
 
-### Per-system file set (the pattern to copy)
+### Per-system file set
 
-Every catalog system with id `<id>` (see `systemsCatalog.js`) is built from the same parts. Use Keltner as the cleanest reference:
+Every catalog system with id `<id>` (see `systemsCatalog.js`) is built from the same parts. `docs/system-page-definition-of-done.md` §2–§5 is the authoritative list of required modules, backend functions, endpoints, DB table and page layout — follow that checklist rather than copying an existing system wholesale.
 
-| Layer | File(s) | Role |
-|---|---|---|
-| Indicator | `frontend/src/keltner.js`, `atr.js`, `ma.js` | pure series math |
-| Simulation | `keltnerSignals.js` → `simulateKeltner(bars, ...params)` | returns `{ trades, markers }`; markers `text` is `"Open"`/`"Close"` |
-| Optimizer | `optimizeKeltner.js` → `optimizeKeltner(bars)` | grid search, returns `{ best, usedDefault }`; exports `scoreWindowStart` |
-| Scan | `scanKeltner.js` → `scanKeltner(bars)` | combines the above into one row for the DB |
-| CLI | `scripts/analyze-keltner.mjs` | loops symbols, calls scan, `upsertKeltnerScanRow` |
-| Backend | `scanData.js`: `upsertKeltnerScanRow`, `loadKeltnerPairForSymbol`, `loadKeltnerTopPerformers`, `loadKeltnerYesterdaySignals`, `loadKeltnerDowStocks` | |
-| Routes | `GET /api/systems/<id>/{pair,top-performers,yesterday-signals,dow}` | |
-| UI | `KeltnerChart.jsx`, `KeltnerAboutDialog.jsx`, `KeltnerProblemsDialog.jsx`; `is<System>` flag + `usesChart` in `TaSystemDashboard.jsx`; id added to `AVAILABLE_SYSTEM_IDS` in `SystemsTab.jsx` | |
+Naming: kebab-case `<id>` for the catalog id, route segment and `system_<name>_scan` table; PascalCase `<System>` for `<System>Chart.jsx`, `<System>AboutDialog.jsx`, `<System>ProblemsDialog.jsx` and the `is<System>` flag in `TaSystemDashboard.jsx`.
+
+Two conventions the checklist doesn't spell out:
+
+- `simulate*(bars, ...params)` → `{ trades, markers }`, where marker `text` is exactly `"Open"` / `"Close"` — each `scan*.js` classifies its last signal by matching those strings.
+- `optimize*(bars)` → `{ best, usedDefault }`.
 
 `TaSystemDashboard.jsx` (~2k lines) is one shared shell with per-system `if` branches rather than a plugin registry — expect to add branches there for sidebar inputs, chart selection, dialogs, and fetch URLs.
 

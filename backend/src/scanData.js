@@ -2528,6 +2528,247 @@ export async function loadFibonacciTopPerformers(topN = 50) {
   };
 }
 
+/** Latest Point & figure params from system_point_figure_scan, or null. */
+export async function loadPointFigurePairForSymbol(symbol) {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT scan.opt_box_pct, scan.opt_reversal_boxes
+    FROM system_point_figure_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    WHERE s.symbol = ?
+    ORDER BY scan.as_of_date DESC
+    LIMIT 1
+    `,
+    [String(symbol).trim().toUpperCase()]
+  );
+  if (!rows.length) return null;
+  const boxPct = Number(rows[0].opt_box_pct);
+  const reversalBoxes = Number(rows[0].opt_reversal_boxes);
+  if (!Number.isFinite(boxPct) || !Number.isFinite(reversalBoxes)) {
+    return null;
+  }
+  return { boxPct, reversalBoxes };
+}
+
+/**
+ * Upsert one Point & figure optimize/scan row (system_point_figure_scan).
+ */
+export async function upsertPointFigureScanRow(symbol, scan) {
+  const symbolId = await resolveSymbolId(symbol);
+  if (symbolId == null) {
+    throw new Error(`Unknown symbol: ${symbol}`);
+  }
+  const pool = getPool();
+  await pool.execute(
+    `
+    INSERT INTO system_point_figure_scan (
+      symbol_id, as_of_date, opt_box_pct, opt_reversal_boxes, opt_used_default,
+      running_total, running_total_pct, trade_count,
+      last_signal, signal_date, signal_close, bar_count
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      opt_box_pct = VALUES(opt_box_pct),
+      opt_reversal_boxes = VALUES(opt_reversal_boxes),
+      opt_used_default = VALUES(opt_used_default),
+      running_total = VALUES(running_total),
+      running_total_pct = VALUES(running_total_pct),
+      trade_count = VALUES(trade_count),
+      last_signal = VALUES(last_signal),
+      signal_date = VALUES(signal_date),
+      signal_close = VALUES(signal_close),
+      bar_count = VALUES(bar_count),
+      computed_at = CURRENT_TIMESTAMP
+    `,
+    [
+      symbolId,
+      scan.asOfDate,
+      scan.optBoxPct,
+      scan.optReversalBoxes,
+      scan.optUsedDefault ? 1 : 0,
+      scan.runningTotal,
+      scan.runningTotalPct,
+      scan.tradeCount,
+      scan.lastSignal,
+      scan.signalDate,
+      scan.signalClose,
+      scan.barCount,
+    ]
+  );
+}
+
+export async function loadPointFigureYesterdaySignals() {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      s.asset_type,
+      scan.last_signal,
+      scan.signal_date,
+      scan.signal_close,
+      scan.opt_box_pct,
+      scan.opt_reversal_boxes,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_point_figure_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_point_figure_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE scan.last_signal IN ('entry', 'exit')
+    ORDER BY scan.signal_date DESC, s.symbol ASC
+    `
+  );
+
+  if (!rows.length) {
+    return { signals: [], computedAt: null };
+  }
+
+  return {
+    computedAt: rows[0].computed_at ?? null,
+    signals: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      assetType: row.asset_type ? String(row.asset_type) : null,
+      signal: String(row.last_signal),
+      signalDate: formatDateOnly(row.signal_date),
+      price:
+        row.signal_close != null ? Number(row.signal_close) : null,
+      optBoxPct: Number(row.opt_box_pct),
+      optReversalBoxes: Number(row.opt_reversal_boxes),
+    })),
+  };
+}
+
+const POINT_FIGURE_DEFAULT = { boxPct: 1, reversalBoxes: 3 };
+
+export async function loadPointFigureDowStocks() {
+  const pool = getPool();
+  const placeholders = DOW30_SYMBOLS.map(() => "?").join(",");
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_box_pct,
+      scan.opt_reversal_boxes,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.computed_at
+    FROM system_point_figure_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_point_figure_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.symbol IN (${placeholders})
+    `,
+    DOW30_SYMBOLS
+  );
+
+  const bySymbol = new Map();
+  for (const row of rows) {
+    bySymbol.set(String(row.symbol).toUpperCase(), {
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optBoxPct: Number(row.opt_box_pct),
+      optReversalBoxes: Number(row.opt_reversal_boxes),
+      runningTotal:
+        row.running_total != null ? Number(row.running_total) : null,
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+    });
+  }
+
+  const { boxPct, reversalBoxes } = POINT_FIGURE_DEFAULT;
+  const stocks = DOW30_SYMBOLS.map(
+    (symbol) =>
+      bySymbol.get(symbol) ?? {
+        symbol,
+        companyName: null,
+        optBoxPct: boxPct,
+        optReversalBoxes: reversalBoxes,
+        runningTotal: null,
+        runningTotalPct: null,
+      }
+  );
+
+  return {
+    computedAt: rows[0]?.computed_at ?? null,
+    stocks,
+  };
+}
+
+/**
+ * Top stock/ETF by latest Point & figure scan score (last ~2y 1-share P/L %).
+ */
+export async function loadPointFigureTopPerformers(topN = 50) {
+  const lim = Math.min(100, Math.max(1, Math.floor(topN) || 50));
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      s.symbol,
+      s.company_name,
+      scan.opt_box_pct,
+      scan.opt_reversal_boxes,
+      scan.running_total,
+      scan.running_total_pct,
+      scan.trade_count,
+      scan.as_of_date,
+      scan.computed_at
+    FROM system_point_figure_scan scan
+    INNER JOIN stock_symbols s ON s.id = scan.symbol_id
+    INNER JOIN (
+      SELECT symbol_id, MAX(as_of_date) AS as_of_date
+      FROM system_point_figure_scan
+      GROUP BY symbol_id
+    ) latest
+      ON latest.symbol_id = scan.symbol_id
+     AND latest.as_of_date = scan.as_of_date
+    WHERE s.asset_type IN ('stock', 'etf')
+      AND scan.trade_count >= ${MIN_TRADES_FOR_TOP}
+    ORDER BY scan.running_total_pct IS NULL ASC,
+             scan.running_total_pct DESC
+    LIMIT ${lim}
+    `
+  );
+
+  if (!rows.length) {
+    return { asOfDate: null, computedAt: null, top: [] };
+  }
+
+  return {
+    asOfDate: null,
+    computedAt: rows[0].computed_at ?? null,
+    top: rows.map((row) => ({
+      symbol: String(row.symbol).toUpperCase(),
+      companyName: row.company_name
+        ? String(row.company_name).trim() || null
+        : null,
+      optBoxPct: Number(row.opt_box_pct),
+      optReversalBoxes: Number(row.opt_reversal_boxes),
+      runningTotal: Number(row.running_total),
+      runningTotalPct:
+        row.running_total_pct != null ? Number(row.running_total_pct) : null,
+      tradeCount: Number(row.trade_count),
+    })),
+  };
+}
+
 async function getLatestScanMeta() {
   const pool = getPool();
   const [rows] = await pool.execute(

@@ -27,6 +27,7 @@ const STEPS = [
   { name: "analyze-bollinger", file: "analyze-bollinger.mjs" },
   { name: "analyze-darvas", file: "analyze-darvas.mjs" },
   { name: "analyze-fibonacci", file: "analyze-fibonacci.mjs" },
+  { name: "analyze-point-figure", file: "analyze-point-figure.mjs" },
 ];
 
 function pad2(n) {

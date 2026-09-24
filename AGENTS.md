@@ -27,7 +27,7 @@ Swing Traders Workbench (`dbma-trading`) is a local stock-analysis dashboard. It
 - A qualifying bar creates a signal; entries and exits fill at the next session's open.
 - Trade P/L is one-share dollar P/L; open positions are marked to the final close.
 - Optimizers choose parameters from full-history dollar P/L, while ranking scores use approximately the latest two years.
-- Each system generally has indicator, signal simulation, optimizer, scan, script, database-query/API, and chart/dialog components. Keltner is the clearest reference implementation.
+- Each system generally has indicator, signal simulation, optimizer, scan, script, database-query/API, and chart/dialog components. `docs/system-page-definition-of-done.md` §2–§5 lists what each system must include.
 
 ## Word rules
 
@@ -66,4 +66,6 @@ Install dependencies with `npm install`, `npm install --prefix backend`, and `np
 
 ## Verification
 
-No automated test suite or linter is configured. For UI/system changes, follow `docs/system-page-definition-of-done.md` and at minimum build the frontend with `npm run build --prefix frontend` when the change affects it.
+No automated test suite or linter is configured. For UI/system changes, follow `docs/system-page-definition-of-done.md`.
+
+Syntax-check code after editing it, but never by invoking a build or bundle tool (`npm run build --prefix frontend`, ad-hoc `esbuild`/`vite build`, etc.) — a production build is only for an actual production push, which the user runs. For plain `.js` files, `node --check <file>` is fine. For `.jsx`/JSX syntax, there is no bundle-free syntax check available, so verify by careful reading instead; `npm run dev`'s hot reload already surfaces any real parse error live in the browser/terminal.

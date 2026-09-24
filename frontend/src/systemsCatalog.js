@@ -88,6 +88,16 @@ export const SYSTEM_SECTIONS = [
         blurb: "Multi-bar patterns at major support/resistance.",
       },
       {
+        id: "double-top-bottom",
+        name: "Double Top / Double Bottom",
+        blurb: "Two matching highs (M) or lows (W); signal on break of the middle pivot.",
+      },
+      {
+        id: "triple-top-bottom",
+        name: "Triple Top / Triple Bottom",
+        blurb: "Three matching highs or lows; signal on break of the pattern's floor/ceiling.",
+      },
+      {
         id: "thestrat",
         name: "TheStrat multi-timeframe",
         blurb: "Candle types 1/2/3 with multi-timeframe continuity setups.",
