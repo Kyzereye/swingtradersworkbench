@@ -13,6 +13,7 @@ import {
   getUserBySession,
   getProfile,
   upsertPhoneNumber,
+  changeEmail,
   requestPasswordChange,
   confirmPasswordChange,
   deleteAccount,
@@ -161,7 +162,7 @@ app.get("/api/auth/verify-email", async (req, res) => {
   }
 });
 
-const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+const SESSION_MAX_AGE_SECONDS = 3 * 60 * 60;
 
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body || {};
@@ -245,6 +246,24 @@ app.put("/api/profile/phone", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Could not update phone number." });
+  }
+});
+
+app.put("/api/profile/email", async (req, res) => {
+  try {
+    const user = await requireSession(req, res);
+    if (!user) return;
+    const { email } = req.body || {};
+    const result = await changeEmail(user.id, user.email, email);
+    if (result.ok) {
+      res.setHeader("Set-Cookie", serializeCookie("session", "", {}));
+      res.status(result.status).json({ email: result.email, message: result.message });
+    } else {
+      res.status(result.status).json({ error: result.message });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not update email. Please try again later." });
   }
 });
 

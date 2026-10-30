@@ -5,7 +5,7 @@ import { sendTokenEmail } from "./utils/sendTokenEmail.js";
 
 const BCRYPT_ROUNDS = 10;
 const VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
-const SESSION_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const SESSION_TOKEN_TTL_MS = 3 * 60 * 60 * 1000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^[0-9+()\-.\s]{7,20}$/;
 
@@ -187,6 +187,69 @@ export async function upsertPhoneNumber(userId, rawPhoneNumber) {
   );
 
   return { ok: true, status: 200, phoneNumber: phoneNumber || null };
+}
+
+export async function changeEmail(userId, currentEmail, rawNewEmail) {
+  const email = typeof rawNewEmail === "string" ? rawNewEmail.trim().toLowerCase() : "";
+  if (!EMAIL_RE.test(email)) {
+    return { ok: false, status: 400, message: "Enter a valid email address." };
+  }
+  if (email === currentEmail) {
+    return { ok: false, status: 400, message: "That is already your email address." };
+  }
+
+  const pool = getPool();
+  const [existing] = await pool.query("SELECT id FROM users WHERE email = ? AND id != ?", [email, userId]);
+  if (existing.length > 0) {
+    return { ok: false, status: 400, message: "An account with this email already exists." };
+  }
+
+  const token = crypto.randomBytes(32).toString("hex");
+  const tokenExpires = new Date(Date.now() + VERIFICATION_TOKEN_TTL_MS);
+  const verifyUrl = `${FRONTEND_URL}/verify-email?token=${token}`;
+
+  try {
+    await sendTokenEmail({
+      to: email,
+      subject: "Confirm your new email — JJK Trading Labs",
+      heading: "Confirm your new email",
+      textBody: `We received a request to change the email address on your JJK Trading Labs account.
+
+Confirm this new email address:`,
+      htmlIntro:
+        "We received a request to change the email address on your account. Click the button below to confirm this new address.",
+      buttonLabel: "Confirm email",
+      url: verifyUrl,
+      expiryNote:
+        "This link expires in 24 hours. If you didn't request this change, you can ignore this email and your address will stay the same.",
+    });
+  } catch (err) {
+    console.error("Failed to send email-change verification:", err);
+    return {
+      ok: false,
+      status: 500,
+      message: "Could not send the verification email. Please try again later.",
+    };
+  }
+
+  await pool.query(
+    `UPDATE users SET
+       email = ?,
+       email_verified = FALSE,
+       verification_token = ?,
+       verification_token_expires = ?,
+       session_token = NULL,
+       session_token_expires = NULL
+     WHERE id = ?`,
+    [email, token, tokenExpires, userId]
+  );
+
+  return {
+    ok: true,
+    status: 200,
+    message: "Check your new email address to confirm this change.",
+    email,
+  };
 }
 
 export async function requestPasswordChange(userId, email, newPassword, confirmNewPassword) {

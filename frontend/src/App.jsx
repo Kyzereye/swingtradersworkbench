@@ -176,6 +176,12 @@ export default function App() {
     setPage("app");
   }
 
+  function handleEmailChanged() {
+    setAuthEmail("");
+    setAuthState("anon");
+    setPage("app");
+  }
+
   useEffect(() => {
     localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favorites].sort()));
   }, [favorites]);
@@ -327,7 +333,10 @@ export default function App() {
       {page === "rules" ? (
         <TradingRules />
       ) : page === "profile" ? (
-        <ProfilePage onAccountDeleted={handleAccountDeleted} />
+        <ProfilePage
+          onAccountDeleted={handleAccountDeleted}
+          onEmailChanged={handleEmailChanged}
+        />
       ) : (
         <>
           <DashboardTabs tab={tab} onChange={onTabChange} />
