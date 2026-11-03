@@ -334,6 +334,36 @@ export async function confirmPasswordChange(token) {
   return { ok: true, message: "Password changed. Please sign in with your new password." };
 }
 
+// Forgot password (signed out). Same pending-password + email-confirm flow as the
+// profile change. Replies the same whether or not the email has an account.
+export async function requestPasswordReset(rawEmail, newPassword, confirmNewPassword) {
+  const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
+  if (!EMAIL_RE.test(email)) {
+    return { ok: false, status: 400, message: "Enter a valid email address." };
+  }
+  if (newPassword !== confirmNewPassword) {
+    return { ok: false, status: 400, message: "Passwords do not match." };
+  }
+  const passwordCheck = validatePassword(newPassword);
+  if (!passwordCheck.ok) {
+    return { ok: false, status: 400, message: passwordCheck.message };
+  }
+
+  const sentMessage =
+    "If an account exists for that email, we sent a link to confirm your new password.";
+
+  const pool = getPool();
+  const [rows] = await pool.query("SELECT id, is_active FROM users WHERE email = ?", [email]);
+  const user = rows[0];
+  if (!user || !user.is_active) {
+    return { ok: true, status: 200, message: sentMessage };
+  }
+
+  const result = await requestPasswordChange(user.id, email, newPassword, confirmNewPassword);
+  if (!result.ok) return result;
+  return { ok: true, status: 200, message: sentMessage };
+}
+
 export async function deleteAccount(userId, password) {
   const pool = getPool();
   const [rows] = await pool.query("SELECT password_hash FROM users WHERE id = ?", [userId]);

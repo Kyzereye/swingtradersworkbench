@@ -1,4 +1,5 @@
 import { useState } from "react";
+import LoadingDots from "./LoadingDots.jsx";
 import PasswordChecklist from "./PasswordChecklist.jsx";
 import PasswordInput from "./PasswordInput.jsx";
 import { isPasswordValid, passwordsMatch } from "./passwordRules.js";
@@ -108,8 +109,8 @@ export default function RegisterForm({ onGoLogin }) {
         >
           {submitting ? (
             <>
-              <span className="spinner" aria-hidden="true" />
-              Creating account…
+              Creating account
+              <LoadingDots />
             </>
           ) : (
             "Create account"

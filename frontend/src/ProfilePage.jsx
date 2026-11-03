@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import LoadingDots from "./LoadingDots.jsx";
 import PasswordChecklist from "./PasswordChecklist.jsx";
 import PasswordInput from "./PasswordInput.jsx";
 import DeleteAccountDialog from "./DeleteAccountDialog.jsx";
@@ -235,8 +236,8 @@ export default function ProfilePage({ onAccountDeleted, onEmailChanged }) {
             >
               {passwordSubmitting ? (
                 <>
-                  <span className="spinner" aria-hidden="true" />
-                  Sending…
+                  Sending
+                  <LoadingDots />
                 </>
               ) : (
                 "Change password"

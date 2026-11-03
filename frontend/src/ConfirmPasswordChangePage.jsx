@@ -4,34 +4,37 @@ export default function ConfirmPasswordChangePage({ onConfirmed }) {
   const [message, setMessage] = useState("Confirming your password change…");
   const onConfirmedRef = useRef(onConfirmed);
   onConfirmedRef.current = onConfirmed;
+  const requestSentRef = useRef(false);
 
   useEffect(() => {
+    // React dev mode runs effects twice. The token works only once, so send it once.
+    if (requestSentRef.current) return;
+    requestSentRef.current = true;
+
     const token = new URLSearchParams(window.location.search).get("token") || "";
     if (!token) {
       setMessage("Missing confirmation token.");
       return;
     }
 
-    let cancelled = false;
-    fetch(`/api/profile/confirm-password-change?token=${encodeURIComponent(token)}`)
-      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
-      .then(({ ok, data }) => {
-        if (cancelled) return;
-        setMessage(data.message || (ok ? "Password changed." : "Confirmation failed."));
-        if (ok) {
-          setTimeout(() => {
-            if (!cancelled) onConfirmedRef.current();
-          }, 1500);
+    async function confirmPasswordChange() {
+      try {
+        const res = await fetch(
+          `/api/profile/confirm-password-change?token=${encodeURIComponent(token)}`
+        );
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setMessage(data.message || "Confirmation failed.");
+          return;
         }
-      })
-      .catch(() => {
-        if (cancelled) return;
+        setMessage(data.message || "Password changed.");
+        setTimeout(() => onConfirmedRef.current(), 1500);
+      } catch {
         setMessage("Confirmation failed. Please try again.");
-      });
+      }
+    }
 
-    return () => {
-      cancelled = true;
-    };
+    confirmPasswordChange();
   }, []);
 
   return (

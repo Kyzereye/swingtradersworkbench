@@ -16,6 +16,7 @@ import {
   changeEmail,
   requestPasswordChange,
   confirmPasswordChange,
+  requestPasswordReset,
   deleteAccount,
 } from "./auth.js";
 import { parseCookies, serializeCookie } from "./cookies.js";
@@ -159,6 +160,21 @@ app.get("/api/auth/verify-email", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Verification failed. Please try again later." });
+  }
+});
+
+app.post("/api/auth/forgot-password", async (req, res) => {
+  const { email, newPassword, confirmNewPassword } = req.body || {};
+  try {
+    const result = await requestPasswordReset(email, newPassword, confirmNewPassword);
+    if (result.ok) {
+      res.status(result.status).json({ message: result.message });
+    } else {
+      res.status(result.status).json({ error: result.message });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not start password reset. Please try again later." });
   }
 });
 

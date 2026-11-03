@@ -1,7 +1,7 @@
 import { useState } from "react";
 import PasswordInput from "./PasswordInput.jsx";
 
-export default function LoginForm({ onGoRegister, onLoginSuccess }) {
+export default function LoginForm({ onGoRegister, onGoForgotPassword, onLoginSuccess }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -73,6 +73,12 @@ export default function LoginForm({ onGoRegister, onLoginSuccess }) {
             {submitting ? "Signing in…" : "Log in"}
           </button>
         </form>
+
+        <p className="auth-switch">
+          <button type="button" className="auth-link-btn" onClick={onGoForgotPassword}>
+            Forgot password?
+          </button>
+        </p>
 
         <p className="auth-switch">
           Don&apos;t have an account?{" "}

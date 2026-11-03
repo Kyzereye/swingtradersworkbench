@@ -12,6 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Product scope
 
+- JJK Trading Labs is a backtesting application. Every system shows how a rule performed on past data.
 - This site is for education and backtesting information only. It is not for trading signals.
 - This is for information and educational purposes only. It is not to be used for entry and exit trading signals.
 - There will be no risk-management tools within the systems components.

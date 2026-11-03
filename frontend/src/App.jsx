@@ -13,6 +13,7 @@ import UserDashboardTab from "./UserDashboardTab.jsx";
 import SystemsTab from "./SystemsTab.jsx";
 import DisclaimerDialog from "./DisclaimerDialog.jsx";
 import RegisterForm from "./RegisterForm.jsx";
+import ForgotPasswordForm from "./ForgotPasswordForm.jsx";
 import LoginForm from "./LoginForm.jsx";
 import VerifyEmailPage from "./VerifyEmailPage.jsx";
 import ConfirmPasswordChangePage from "./ConfirmPasswordChangePage.jsx";
@@ -312,9 +313,12 @@ export default function App() {
       ) : authState === "anon" ? (
         page === "register" ? (
           <RegisterForm onGoLogin={() => setPage("app")} />
+        ) : page === "forgot-password" ? (
+          <ForgotPasswordForm onGoLogin={() => setPage("app")} />
         ) : (
           <LoginForm
             onGoRegister={() => setPage("register")}
+            onGoForgotPassword={() => setPage("forgot-password")}
             onLoginSuccess={handleLoginSuccess}
           />
         )
