@@ -1,0 +1,44 @@
+{
+  "AAPL": {
+    "asOfDate": "2026-11-02",
+    "optFast": 14,
+    "optSlow": 80,
+    "optUsedDefault": false,
+    "optR3y": 69.564799,
+    "optR1y": 27.095214,
+    "optMinReturn": 27.095214,
+    "runningTotal": 138.06,
+    "runningTotalPct": 57.486063,
+    "lastSignal": "exit",
+    "signalDate": "2026-11-02",
+    "barCount": 1254
+  },
+  "MSFT": {
+    "asOfDate": "2026-11-02",
+    "optFast": 10,
+    "optSlow": 38,
+    "optUsedDefault": false,
+    "optR3y": 37.868205,
+    "optR1y": 18.080112,
+    "optMinReturn": 18.080112,
+    "runningTotal": 156.8,
+    "runningTotalPct": 36.495081,
+    "lastSignal": "exit",
+    "signalDate": "2026-11-02",
+    "barCount": 1254
+  },
+  "SPY": {
+    "asOfDate": "2026-11-02",
+    "optFast": 8,
+    "optSlow": 68,
+    "optUsedDefault": false,
+    "optR3y": -1.53869,
+    "optR1y": -3.766528,
+    "optMinReturn": -3.766528,
+    "runningTotal": 1.84,
+    "runningTotalPct": -0.243776,
+    "lastSignal": "exit",
+    "signalDate": "2026-11-02",
+    "barCount": 1254
+  }
+}

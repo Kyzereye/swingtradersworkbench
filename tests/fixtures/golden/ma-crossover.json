@@ -1,0 +1,41 @@
+{
+  "AAPL": {
+    "asOfDate": "2026-11-02",
+    "optFast": 22,
+    "optSlow": 62,
+    "optUsedDefault": false,
+    "runningTotal": 169.62,
+    "runningTotalPct": 77.104145,
+    "tradeCount": 4,
+    "lastSignal": "open",
+    "signalDate": "2026-04-30",
+    "signalClose": null,
+    "barCount": 1254
+  },
+  "MSFT": {
+    "asOfDate": "2026-11-02",
+    "optFast": 10,
+    "optSlow": 16,
+    "optUsedDefault": false,
+    "runningTotal": 135.8,
+    "runningTotalPct": 37.604092,
+    "tradeCount": 17,
+    "lastSignal": "none",
+    "signalDate": null,
+    "signalClose": null,
+    "barCount": 1254
+  },
+  "SPY": {
+    "asOfDate": "2026-11-02",
+    "optFast": 50,
+    "optSlow": 62,
+    "optUsedDefault": false,
+    "runningTotal": 112.84,
+    "runningTotalPct": 17.827988,
+    "tradeCount": 5,
+    "lastSignal": "none",
+    "signalDate": null,
+    "signalClose": null,
+    "barCount": 1254
+  }
+}

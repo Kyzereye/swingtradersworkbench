@@ -1,6 +1,10 @@
 import nodemailer from "nodemailer";
 
 function getTransport() {
+  // EMAIL_TRANSPORT=log (used by the e2e tests) builds the email but never sends it.
+  if (process.env.EMAIL_TRANSPORT === "log") {
+    return nodemailer.createTransport({ jsonTransport: true });
+  }
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT) || 587,

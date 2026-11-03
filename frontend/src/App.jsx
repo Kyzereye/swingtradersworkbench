@@ -126,6 +126,7 @@ export default function App() {
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(loadDisclaimerAccepted);
   const [authState, setAuthState] = useState("checking");
   const [authEmail, setAuthEmail] = useState("");
+  const [guestLoginEnabled, setGuestLoginEnabled] = useState(false);
 
   function acceptDisclaimer() {
     try {
@@ -138,22 +139,33 @@ export default function App() {
   }
 
   useEffect(() => {
-    fetch("/api/auth/me", { credentials: "include" })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.authenticated) {
-          setAuthState("authed");
-          setAuthEmail(data.email);
-        } else {
+    async function checkSession() {
+      try {
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+        const data = await res.json();
+        setGuestLoginEnabled(Boolean(data?.guestLoginEnabled));
+        if (!data?.authenticated) {
           setAuthState("anon");
+          return;
         }
-      })
-      .catch(() => setAuthState("anon"));
+        setAuthState(data.guest ? "guest" : "authed");
+        setAuthEmail(data.email);
+      } catch {
+        setAuthState("anon");
+      }
+    }
+    checkSession();
   }, []);
 
   function handleLoginSuccess(email) {
     setAuthEmail(email);
     setAuthState("authed");
+    setPage("app");
+  }
+
+  function handleGuestSuccess() {
+    setAuthEmail("Guest");
+    setAuthState("guest");
     setPage("app");
   }
 
@@ -320,6 +332,8 @@ export default function App() {
             onGoRegister={() => setPage("register")}
             onGoForgotPassword={() => setPage("forgot-password")}
             onLoginSuccess={handleLoginSuccess}
+            guestLoginEnabled={guestLoginEnabled}
+            onGuestSuccess={handleGuestSuccess}
           />
         )
       ) : !disclaimerAccepted ? (
@@ -332,6 +346,7 @@ export default function App() {
         onGoRules={() => setPage("rules")}
         onGoProfile={() => setPage("profile")}
         authEmail={authEmail}
+        isGuest={authState === "guest"}
         onLogout={handleLogout}
       />
       {page === "rules" ? (

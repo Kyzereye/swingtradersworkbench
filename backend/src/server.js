@@ -20,6 +20,13 @@ import {
   deleteAccount,
 } from "./auth.js";
 import { parseCookies, serializeCookie } from "./cookies.js";
+import { requireApiLogin } from "./apiAccess.js";
+import {
+  GUEST_SESSION_TTL_MS,
+  isGuestLoginEnabled,
+  createGuestToken,
+  isValidGuestToken,
+} from "./guestSession.js";
 import {
   listScanDates,
   loadScanForDate,
@@ -118,6 +125,7 @@ app.use(
   })
 );
 app.use(express.json());
+app.use("/api", requireApiLogin);
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "dbma-trading-backend" });
@@ -203,7 +211,10 @@ app.post("/api/auth/logout", async (req, res) => {
   const { session } = parseCookies(req.headers.cookie);
   try {
     await logoutSession(session);
-    res.setHeader("Set-Cookie", serializeCookie("session", "", {}));
+    res.setHeader("Set-Cookie", [
+      serializeCookie("session", "", {}),
+      serializeCookie("guest", "", {}),
+    ]);
     res.status(204).end();
   } catch (err) {
     console.error(err);
@@ -211,15 +222,32 @@ app.post("/api/auth/logout", async (req, res) => {
   }
 });
 
+app.post("/api/auth/guest", (_req, res) => {
+  if (!isGuestLoginEnabled()) {
+    res.status(404).json({ error: "Guest access is not available." });
+    return;
+  }
+  res.setHeader(
+    "Set-Cookie",
+    serializeCookie("guest", createGuestToken(), { maxAgeSeconds: GUEST_SESSION_TTL_MS / 1000 })
+  );
+  res.status(200).json({ guest: true, email: "Guest" });
+});
+
 app.get("/api/auth/me", async (req, res) => {
-  const { session } = parseCookies(req.headers.cookie);
+  const { session, guest } = parseCookies(req.headers.cookie);
+  const guestLoginEnabled = isGuestLoginEnabled();
   try {
     const user = await getUserBySession(session);
-    if (!user) {
-      res.status(200).json({ authenticated: false });
+    if (user) {
+      res.status(200).json({ authenticated: true, email: user.email, guestLoginEnabled });
       return;
     }
-    res.status(200).json({ authenticated: true, email: user.email });
+    if (isValidGuestToken(guest)) {
+      res.status(200).json({ authenticated: true, guest: true, email: "Guest", guestLoginEnabled });
+      return;
+    }
+    res.status(200).json({ authenticated: false, guestLoginEnabled });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Could not check session." });

@@ -46,6 +46,17 @@ INGEST_DELAY_MS=100
 SCAN_DELAY_MS=0
 ```
 
+Guest access (a "Continue as guest" button on the login page; off unless both are set). Guests can view everything except Profile. Set `GUEST_LOGIN_ENABLED=false` and restart the backend to turn it off.
+
+```env
+GUEST_LOGIN_ENABLED=true
+GUEST_SESSION_SECRET=long_random_string
+```
+
+Make a secret with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+
+All `/api` routes require a signed-in user or guest, except health, pageview, and the auth routes (`backend/src/apiAccess.js`).
+
 Install dependencies:
 
 ```bash

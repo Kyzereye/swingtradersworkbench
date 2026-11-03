@@ -1,7 +1,13 @@
 import { useState } from "react";
 import PasswordInput from "./PasswordInput.jsx";
 
-export default function LoginForm({ onGoRegister, onGoForgotPassword, onLoginSuccess }) {
+export default function LoginForm({
+  onGoRegister,
+  onGoForgotPassword,
+  onLoginSuccess,
+  guestLoginEnabled,
+  onGuestSuccess,
+}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -26,6 +32,23 @@ export default function LoginForm({ onGoRegister, onGoForgotPassword, onLoginSuc
       onLoginSuccess(data.email);
     } catch {
       setError("Sign in failed. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleContinueAsGuest() {
+    setError("");
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/auth/guest", { method: "POST", credentials: "include" });
+      if (!res.ok) {
+        setError("Guest access is not available right now.");
+        return;
+      }
+      onGuestSuccess();
+    } catch {
+      setError("Guest access failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -73,6 +96,19 @@ export default function LoginForm({ onGoRegister, onGoForgotPassword, onLoginSuc
             {submitting ? "Signing in…" : "Log in"}
           </button>
         </form>
+
+        {guestLoginEnabled ? (
+          <p className="auth-switch">
+            <button
+              type="button"
+              className="auth-link-btn"
+              onClick={handleContinueAsGuest}
+              disabled={submitting}
+            >
+              Continue as guest
+            </button>
+          </p>
+        ) : null}
 
         <p className="auth-switch">
           <button type="button" className="auth-link-btn" onClick={onGoForgotPassword}>

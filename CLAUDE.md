@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Strict scope:** only do the exact task requested. No unrelated refactors, no unrequested features.
 - **KISS:** no new abstractions or external libraries unless explicitly asked. Minimal, direct edits — don't rewrite a file when a 5-line fix works.
 - **No database changes:** never run DDL/DML against any database. Put DDL in `sql_queries/sql_queries.sql` and tell the user exactly what to apply; the user runs it.
+- **Schema changes:** `sql_queries/sql_queries.sql` stays the full schema (it drops and recreates tables), so put the change in the table's `CREATE`. For a change to an existing database, also give the user two statements in the reply: UP (the `ALTER` that applies it) and DOWN (the statement that undoes it). Say which database each is for: local `StockPxLabs` (from `backend/.env`) or the live site.
 - **No affirmation:** don't tell the user they are right.
 - **Answer the question asked:** when the user asks a question, answer it. Don't pivot into unrequested fixes, implementations, or scope expansion — offer them separately and wait to be asked.
 
@@ -40,6 +41,14 @@ The site describes what a rule did on past data, not what a person should do. In
 
 Exceptions: the brand name "JJK Trading Labs"; the legal disclaimer; code identifiers, CSS class names, DB columns, API field names, and code comments. Only visible text changes.
 
+**Check before finishing:** before finishing any change that adds or edits visible text (components, dialogs, and API `message`/`error` strings shown to users), search that text for *trade, win, loss* and their forms, and fix any hits. Match whole words so names like `window` don't count.
+
+## Session handoff
+
+At the end of a session that changes the project, update `~/Projects/my/myProjects/jjktradinglabs.md`:
+- Add a dated entry (`- YYYY-MM-DD: ...`) to the bottom of `## Current status`. Never delete or rewrite earlier entries.
+- Replace the list under `## Next 3 actions` with the current three.
+
 ## Commands
 
 No test suite and no linter are configured. Verification is manual (see `docs/system-page-definition-of-done.md` §6).
@@ -71,7 +80,11 @@ Three npm workspaces-by-hand (root, `backend/`, `frontend/`), all ESM.
 
 - **`backend/src`** — Express API over MySQL (`mysql2` pool in `db.js`, `.env` loaded from `backend/.env`). `scanData.js` (~2.5k lines) holds every SQL query: bar loading, per-system `upsert*ScanRow`, and the four read queries per system. `server.js` is thin route wrappers around those.
 - **`frontend/src`** — React 18 + Vite + `lightweight-charts`. Flat directory; files are grouped by naming prefix per trading system, not by folder. The legacy price-vs-MA system lives in `App.jsx` / `tradeSignals.js` / `scanSymbol.js`; the **Systems** tab (`SystemsTab.jsx` → `TaSystemDashboard.jsx`) hosts the newer catalog systems.
-- **`scripts/*.mjs`** — Node CLIs run by cron. **They import pure-JS modules directly from `frontend/src`** (e.g. `scripts/analyze-keltner.mjs` imports `../frontend/src/scanKeltner.js`). Therefore `*.js` files under `frontend/src` that scripts touch must stay browser- and Node-safe (no DOM, no JSX, no Vite-only imports).
+- **`scripts/*.mjs`** — Node CLIs run by cron. **They import pure-JS modules directly from `frontend/src`** (e.g. `scripts/analyze-keltner.mjs` imports `../frontend/src/scanKeltner.js`). Therefore `*.js` files under `frontend/src` that scripts touch must stay browser- and Node-safe:
+  - ESM only (`import`/`export`). No `require` or `module.exports`.
+  - No Node-only modules (`fs`, `path`, `node:*`) and no `process.env`.
+  - No browser globals (`window`, `document`, `localStorage`). If one is truly needed, guard it with `typeof window !== "undefined"`.
+  - No JSX and no Vite-only imports.
 - **`sql_queries/sql_queries.sql`** — full schema; **drops and recreates** tables. One `system_<name>_scan` table per system, unique on `(symbol_id, as_of_date)`.
 
 ### Per-system file set

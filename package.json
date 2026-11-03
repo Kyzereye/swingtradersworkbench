@@ -19,9 +19,15 @@
     "analyze-darvas": "node scripts/analyze-darvas.mjs",
     "analyze-fibonacci": "node scripts/analyze-fibonacci.mjs",
     "analyze-point-figure": "node scripts/analyze-point-figure.mjs",
-    "pipeline:nightly": "node scripts/pipeline-nightly.mjs"
+    "pipeline:nightly": "node scripts/pipeline-nightly.mjs",
+    "test": "node --test \"tests/unit/**/*.test.mjs\"",
+    "test:fixtures": "node tests/tools/export-fixtures.mjs",
+    "test:seed-scans": "node tests/tools/seed-test-scans.mjs",
+    "test:e2e": "playwright test",
+    "test:all": "npm test && npm run test:e2e"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "concurrently": "^9.1.2"
   }
 }

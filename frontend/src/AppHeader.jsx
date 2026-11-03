@@ -1,4 +1,14 @@
-export default function AppHeader({ page, onGoHome, onGoRules, onGoProfile, authEmail, onLogout }) {
+export default function AppHeader({
+  page,
+  onGoHome,
+  onGoRules,
+  onGoProfile,
+  authEmail,
+  isGuest,
+  onLogout,
+}) {
+  const showProfileLink = page !== "profile" && !isGuest;
+
   return (
     <header className="app-header">
       <div className="app-header-brand-wrap">
@@ -20,7 +30,7 @@ export default function AppHeader({ page, onGoHome, onGoRules, onGoProfile, auth
             Open &amp; close rules
           </button>
         ) : null}
-        {page !== "profile" ? (
+        {showProfileLink ? (
           <button type="button" className="app-header-link" onClick={onGoProfile}>
             Profile
           </button>

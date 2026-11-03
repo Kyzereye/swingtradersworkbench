@@ -7,7 +7,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "http://localhost:3001",
+        // API_TARGET lets the e2e tests point at the test backend.
+        target: process.env.API_TARGET || "http://localhost:3001",
         changeOrigin: true,
       },
     },

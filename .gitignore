@@ -5,3 +5,5 @@ backend/.env
 *.log
 video
 data/
+test-results/
+playwright-report/
